@@ -56,13 +56,30 @@ pub(crate) fn render_toggles_column(
     let mut content: Vec<Line<'static>> = Vec::new();
     content.push(Line::raw(""));
 
+    // F1: Task Editor
+    //
+    // ...
+    //
+    let f1_key_style = Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD);
+    let f1_label_style = Style::new().fg(Color::White);
+    let f1_state_label = "";
+    let f1_state_color = Color::DarkGray;
+    content.push(Line::from(vec![
+        Span::styled("  [F1] ", f1_key_style),
+        Span::styled("Edit Tasks ", f1_label_style),
+        Span::styled(
+            f1_state_label,
+            Style::new().fg(f1_state_color).add_modifier(Modifier::BOLD),
+        ),
+    ]));
+
     // F2: Smartcard auto-tracking
     //
     //  Unavailable (library missing)  => fully greyed out, "N/A"
     //  NoReaders   (lib OK, no reader)=> key cyan (re-probe on press), "OFF" dimmed
     //  Available + off                => normal "OFF"
     //  Available + on                 => "ON" in green
-    let (key_style, label_style, state_label, state_color) = match reader_status {
+    let (f2_key_style, f2_label_style, f2_state_label, f2_state_color) = match reader_status {
         ReaderProbe::Unavailable => (
             Style::new().fg(Color::DarkGray),
             Style::new().fg(Color::DarkGray),
@@ -90,11 +107,11 @@ pub(crate) fn render_toggles_column(
     };
 
     content.push(Line::from(vec![
-        Span::styled("  [F2] ", key_style),
-        Span::styled("Smartcard ", label_style),
+        Span::styled("  [F2] ", f2_key_style),
+        Span::styled("Smartcard ", f2_label_style),
         Span::styled(
-            state_label,
-            Style::new().fg(state_color).add_modifier(Modifier::BOLD),
+            f2_state_label,
+            Style::new().fg(f2_state_color).add_modifier(Modifier::BOLD),
         ),
     ]));
 

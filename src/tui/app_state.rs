@@ -1,19 +1,19 @@
 use crossterm::event::KeyCode;
 
 use crate::data::EventKind;
+use crate::storage::TrackerConfig;
 use crate::tracking_logic::execute_action;
 
 use super::smartcard::CardEvent;
 use super::smartcard::ReaderProbe;
 use super::smartcard::SmartcardWatchProcess;
-
 /// Holds the mutable application state between frames
 pub(crate) struct App {
+    pub config: TrackerConfig,
+
     pub feedback: String,
     pub should_quit: bool,
 
-    /// Whether the smartcard auto-tracking feature is active
-    pub smartcard_active: bool,
     /// Result of the initial reader probe (cached at startup)
     pub reader_status: ReaderProbe,
     /// Background Process handle: only `Some` while the feature is active
@@ -23,10 +23,11 @@ pub(crate) struct App {
 impl App {
     pub(crate) fn new() -> Self {
         let reader_status = super::smartcard::probe_readers();
+        let config = TrackerConfig::load();
         Self {
+            config,
             feedback: String::from("Press a key to execute a command."),
             should_quit: false,
-            smartcard_active: false,
             reader_status,
             watch_process: None,
         }
@@ -38,19 +39,27 @@ impl App {
             KeyCode::Char('g') => self.feedback = execute_action(EventKind::Go),
             KeyCode::Char('p') => self.feedback = execute_action(EventKind::Pause),
             KeyCode::Char('s') => self.feedback = execute_action(EventKind::Stop),
+            KeyCode::F(1) => self.toggle_task_editor(),
             KeyCode::F(2) => self.toggle_smartcard(),
             _ => {}
         }
     }
 
+    /// Toggle the task editor
+    fn toggle_task_editor(&mut self) {
+        self.config.save();
+        //todo
+    }
+
     /// Toggle the smartcard auto-tracking feature on/off
     fn toggle_smartcard(&mut self) {
-        if self.smartcard_active {
+        if self.config.smartcard_active {
             // Turn off which stops the watch process thread
             if let Some(watcher) = self.watch_process.take() {
                 watcher.stop();
             }
-            self.smartcard_active = false;
+            self.config.smartcard_active = false;
+            self.config.save();
             self.feedback = "Smartcard auto-tracking OFF.".into();
             return;
         }
@@ -67,7 +76,8 @@ impl App {
         match self.reader_status {
             ReaderProbe::Available => {
                 self.watch_process = Some(SmartcardWatchProcess::spawn());
-                self.smartcard_active = true;
+                self.config.smartcard_active = true;
+                self.config.save();
                 self.feedback = "Smartcard auto-tracking ON.".into();
             }
             ReaderProbe::NoReaders => {

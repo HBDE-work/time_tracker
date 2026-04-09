@@ -1,9 +1,11 @@
 use chrono::Local;
 
 use crate::data::EventKind;
-use crate::tracking_logic::{
-    calculate_worked, format_duration, last_event_kind, load_record, resolve_date,
-};
+use crate::storage::load_record;
+use crate::tracking_logic::calculate_worked;
+use crate::tracking_logic::format_duration;
+use crate::tracking_logic::last_event_kind;
+use crate::tracking_logic::resolve_date;
 
 pub(crate) fn cmd_status(day: Option<String>, week: Option<u32>, year: Option<i32>) {
     let date = resolve_date(day, week, year);

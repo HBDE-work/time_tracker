@@ -2,8 +2,9 @@ use chrono::Local;
 
 use crate::data::Event;
 use crate::data::EventKind;
+use crate::storage::load_record;
+use crate::storage::save_record;
 
-use super::storage::{load_record, save_record};
 use super::timer::calculate_worked;
 
 pub(crate) fn format_duration(d: chrono::Duration) -> String {

@@ -1,3 +1,6 @@
+use std::io;
+use std::time::Duration;
+
 use crossterm::event;
 
 use super::app_state::App;
@@ -5,12 +8,12 @@ use super::rendering::render_actions_column;
 use super::rendering::render_status_panel;
 use super::rendering::render_toggles_column;
 
-const REFRESH_INTERVAL: std::time::Duration = std::time::Duration::from_secs(60);
+const REFRESH_INTERVAL: Duration = Duration::from_secs(60);
 
-type Term = ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>;
+type Term = ratatui::Terminal<ratatui::backend::CrosstermBackend<io::Stdout>>;
 
 /// launches the interactive TUI and blocks until the user quits
-pub(crate) fn run_tui() -> std::io::Result<()> {
+pub(crate) fn run_tui() -> io::Result<()> {
     let mut terminal = enter_tui_mode()?;
     let mut app = App::new();
     let mut next_refresh = std::time::Instant::now();
@@ -40,7 +43,7 @@ pub(crate) fn run_tui() -> std::io::Result<()> {
             let actions = render_actions_column(&app.feedback);
             surface.render_widget(ratatui::widgets::Paragraph::new(actions), cols[0]);
 
-            let toggles = render_toggles_column(app.smartcard_active, app.reader_status);
+            let toggles = render_toggles_column(app.config.smartcard_active, app.reader_status);
             surface.render_widget(ratatui::widgets::Paragraph::new(toggles), cols[1]);
 
             // Lower panel
@@ -59,7 +62,7 @@ pub(crate) fn run_tui() -> std::io::Result<()> {
         // poll for input or tick
         // Use a shorter wait when smartcard watching is active so the
         // UI reacts quickly to card-inserted / card-removed signals
-        let max_wait = if app.smartcard_active {
+        let max_wait = if app.config.smartcard_active {
             std::time::Duration::from_millis(250)
         } else {
             REFRESH_INTERVAL
@@ -85,10 +88,10 @@ pub(crate) fn run_tui() -> std::io::Result<()> {
 /// ratatui terminal handle
 ///
 /// Caller is responsible for calling `restore_terminal` when finished
-fn enter_tui_mode() -> std::io::Result<Term> {
+fn enter_tui_mode() -> io::Result<Term> {
     crossterm::terminal::enable_raw_mode()?;
-    crossterm::execute!(std::io::stdout(), crossterm::terminal::EnterAlternateScreen)?;
-    ratatui::Terminal::new(ratatui::backend::CrosstermBackend::new(std::io::stdout()))
+    crossterm::execute!(io::stdout(), crossterm::terminal::EnterAlternateScreen)?;
+    ratatui::Terminal::new(ratatui::backend::CrosstermBackend::new(io::stdout()))
 }
 
 /// Undoes everything `enter_tui_mode` did so the users shell is usable again

@@ -4,15 +4,7 @@ use std::path::PathBuf;
 
 use crate::data::DayRecord;
 
-fn data_dir() -> PathBuf {
-    let base = if cfg!(windows) {
-        std::env::var("APPDATA").expect("APPDATA not set")
-    } else {
-        let home = std::env::var("HOME").expect("HOME not set");
-        format!("{home}/.config")
-    };
-    PathBuf::from(base).join("time_tracking")
-}
+use super::data_dir;
 
 fn file_for_date(date: NaiveDate) -> PathBuf {
     data_dir().join(format!("{}.json", date))
