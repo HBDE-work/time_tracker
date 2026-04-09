@@ -11,8 +11,10 @@ use crate::tracking_logic::format_duration;
 use crate::tracking_logic::last_event_kind;
 use crate::tracking_logic::today_record;
 
-/// Produces the text content for the upper "commands" panel
-pub(crate) fn render_command_panel(feedback: &str) -> Vec<Line<'_>> {
+use super::smartcard::ReaderProbe;
+
+/// Produces the left-hand content of the upper panel: action hotkeys + feedback
+pub(crate) fn render_actions_column(feedback: &str) -> Vec<Line<'_>> {
     let actions: [(&str, char, &EventKind); 3] = [
         ("Go", 'g', &EventKind::Go),
         ("Pause", 'p', &EventKind::Pause),
@@ -40,6 +42,64 @@ pub(crate) fn render_command_panel(feedback: &str) -> Vec<Line<'_>> {
         format!("  {feedback}"),
         Style::new().fg(Color::White).add_modifier(Modifier::ITALIC),
     )));
+    content
+}
+
+/// Produces the right-hand content of the upper panel: F-key toggle indicators
+///
+/// Each toggle is rendered as `[F<n>] Label  ON/OFF`
+/// and greyed out when the feature is unavailable
+pub(crate) fn render_toggles_column(
+    smartcard_active: bool,
+    reader_status: ReaderProbe,
+) -> Vec<Line<'static>> {
+    let mut content: Vec<Line<'static>> = Vec::new();
+    content.push(Line::raw(""));
+
+    // F2: Smartcard auto-tracking
+    //
+    //  Unavailable (library missing)  => fully greyed out, "N/A"
+    //  NoReaders   (lib OK, no reader)=> key cyan (re-probe on press), "OFF" dimmed
+    //  Available + off                => normal "OFF"
+    //  Available + on                 => "ON" in green
+    let (key_style, label_style, state_label, state_color) = match reader_status {
+        ReaderProbe::Unavailable => (
+            Style::new().fg(Color::DarkGray),
+            Style::new().fg(Color::DarkGray),
+            "N/A",
+            Color::DarkGray,
+        ),
+        ReaderProbe::NoReaders => (
+            Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::new().fg(Color::DarkGray),
+            "OFF",
+            Color::DarkGray,
+        ),
+        ReaderProbe::Available if smartcard_active => (
+            Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::new().fg(Color::White),
+            "ON",
+            Color::Green,
+        ),
+        ReaderProbe::Available => (
+            Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::new().fg(Color::White),
+            "OFF",
+            Color::DarkGray,
+        ),
+    };
+
+    content.push(Line::from(vec![
+        Span::styled("  [F2] ", key_style),
+        Span::styled("Smartcard ", label_style),
+        Span::styled(
+            state_label,
+            Style::new().fg(state_color).add_modifier(Modifier::BOLD),
+        ),
+    ]));
+
+    // more toggles...
+
     content
 }
 
