@@ -5,13 +5,13 @@ use chrono::Weekday;
 
 fn parse_weekday(s: &str) -> Option<Weekday> {
     match s.to_lowercase().as_str() {
-        "monday" | "mon" | "montag" => Some(Weekday::Mon),
-        "tuesday" | "tue" | "dienstag" => Some(Weekday::Tue),
-        "wednesday" | "wed" | "mittwoch" => Some(Weekday::Wed),
-        "thursday" | "thu" | "donnerstag" => Some(Weekday::Thu),
-        "friday" | "fri" | "freitag" => Some(Weekday::Fri),
-        "saturday" | "sat" | "samstag" => Some(Weekday::Sat),
-        "sunday" | "sun" | "sonntag" => Some(Weekday::Sun),
+        "monday" | "mon" | "montag" | "mo" => Some(Weekday::Mon),
+        "tuesday" | "tue" | "dienstag" | "di" => Some(Weekday::Tue),
+        "wednesday" | "wed" | "mittwoch" | "mi" => Some(Weekday::Wed),
+        "thursday" | "thu" | "donnerstag" | "do" => Some(Weekday::Thu),
+        "friday" | "fri" | "freitag" | "fr" => Some(Weekday::Fri),
+        "saturday" | "sat" | "samstag" | "sa" => Some(Weekday::Sat),
+        "sunday" | "sun" | "sonntag" | "so" => Some(Weekday::Sun),
         _ => None,
     }
 }
