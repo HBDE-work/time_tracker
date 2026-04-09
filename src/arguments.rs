@@ -3,13 +3,13 @@ use clap::{Parser, Subcommand};
 #[derive(Parser, Debug)]
 #[command(name = "Time Tracker")]
 #[command(version, about = "Simple CLI Timetracker", long_about = None)]
-pub struct Args {
+pub(crate) struct Args {
     #[command(subcommand)]
-    pub command: Option<Commands>,
+    pub(crate) command: Option<Commands>,
 }
 
 #[derive(Subcommand, Debug)]
-pub enum Commands {
+pub(crate) enum Commands {
     /// Start or resume tracking
     Go,
     /// Pause the current tracking
