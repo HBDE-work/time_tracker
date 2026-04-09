@@ -1,13 +1,9 @@
 use std::fs;
-use std::fs::File;
-use std::fs::OpenOptions;
-use std::io::Read;
-use std::io::Write;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-const CONFIG_FILE: &str = ".tracker_options";
+const CONFIG_FILE: &str = ".tracker_options.toml";
 
 pub(super) fn data_dir() -> PathBuf {
     let base = if cfg!(windows) {
@@ -20,62 +16,50 @@ pub(super) fn data_dir() -> PathBuf {
 }
 
 /// Full path to the config file
-pub(crate) fn config_path() -> PathBuf {
+fn config_path() -> PathBuf {
     data_dir().join(CONFIG_FILE)
 }
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct TrackerConfig {
     /// Whether the smartcard auto-tracking feature is active
-    pub smartcard_active: bool,
+    pub(crate) smartcard_active: bool,
 }
 
 impl TrackerConfig {
     /// Load the configuration
     ///
-    /// if the config can't be loaded the default is returned
-    pub fn load() -> Self {
-        let path = config_path();
-        if let Ok(mut file) = File::open(&path) {
-            let mut contents = String::new();
-            if file.read_to_string(&mut contents).is_ok()
-                && let Ok(cfg) = toml::from_str(&contents)
-            {
-                return cfg;
-            }
-        }
-
-        if let Some(parent) = path.parent() {
-            let _ = fs::create_dir_all(parent);
-        }
-        TrackerConfig::default()
+    /// Returns the default if the file is missing or unreadable
+    pub(crate) fn load() -> Self {
+        fs::read_to_string(config_path())
+            .ok()
+            .and_then(|s| toml::from_str(&s).ok())
+            .unwrap_or_default()
     }
 
     /// Persist the configuration
-    pub fn save(&self) {
+    ///
+    /// may returns error message for the TUI feedback line
+    pub(crate) fn save(&self) -> Result<(), String> {
         let path = config_path();
         if let Some(parent) = path.parent() {
-            let _ = fs::create_dir_all(parent);
+            fs::create_dir_all(parent).map_err(|err| format!("Config dir: {err}"))?;
         }
 
-        let serialized = toml::to_string_pretty(self).unwrap_or_else(|_| String::new());
+        let serialized =
+            toml::to_string_pretty(self).map_err(|err| format!("Config serialize: {err}"))?;
 
-        if let Ok(mut file) = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(path)
-        {
-            let _ = file.write_all(serialized.as_bytes());
-        }
+        fs::write(path, serialized).map_err(|err| format!("Config write: {err}"))
     }
 
     /// modify self
-    pub fn update<F>(&mut self, f: F)
+    #[allow(dead_code)]
+    pub(crate) fn update<F>(&mut self, f: F) -> Result<(), String>
     where
         F: FnOnce(&mut TrackerConfig),
     {
         f(self);
-        self.save()
+        self.save()?;
+        Ok(())
     }
 }

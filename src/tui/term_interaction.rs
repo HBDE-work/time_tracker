@@ -1,5 +1,6 @@
 use std::io;
 use std::time::Duration;
+use std::time::Instant;
 
 use crossterm::event;
 
@@ -16,7 +17,7 @@ type Term = ratatui::Terminal<ratatui::backend::CrosstermBackend<io::Stdout>>;
 pub(crate) fn run_tui() -> io::Result<()> {
     let mut terminal = enter_tui_mode()?;
     let mut app = App::new();
-    let mut next_refresh = std::time::Instant::now();
+    let mut next_refresh = Instant::now();
 
     while !app.should_quit {
         // render
@@ -63,7 +64,7 @@ pub(crate) fn run_tui() -> io::Result<()> {
         // Use a shorter wait when smartcard watching is active so the
         // UI reacts quickly to card-inserted / card-removed signals
         let max_wait = if app.config.smartcard_active {
-            std::time::Duration::from_millis(250)
+            Duration::from_millis(250)
         } else {
             REFRESH_INTERVAL
         };
@@ -76,7 +77,7 @@ pub(crate) fn run_tui() -> io::Result<()> {
         }
 
         if next_refresh.elapsed() >= REFRESH_INTERVAL {
-            next_refresh = std::time::Instant::now();
+            next_refresh = Instant::now();
         }
     }
 

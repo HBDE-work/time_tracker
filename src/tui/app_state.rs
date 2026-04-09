@@ -23,13 +23,28 @@ pub(crate) struct App {
 impl App {
     pub(crate) fn new() -> Self {
         let reader_status = super::smartcard::probe_readers();
-        let config = TrackerConfig::load();
+        let mut config = TrackerConfig::load();
+
+        // Restore the smartcard watcher from config
+        // if a reader is still available
+        let watch_process = if config.smartcard_active && reader_status == ReaderProbe::Available {
+            Some(SmartcardWatchProcess::spawn())
+        } else {
+            if config.smartcard_active {
+                // Reader disappeared since last run; reset so we don't keep
+                // writing a stale "active" flag.
+                config.smartcard_active = false;
+                let _ = config.save();
+            }
+            None
+        };
+
         Self {
             config,
             feedback: String::from("Press a key to execute a command."),
             should_quit: false,
             reader_status,
-            watch_process: None,
+            watch_process,
         }
     }
 
@@ -47,7 +62,7 @@ impl App {
 
     /// Toggle the task editor
     fn toggle_task_editor(&mut self) {
-        self.config.save();
+        self.save_config();
         //todo
     }
 
@@ -59,7 +74,7 @@ impl App {
                 watcher.stop();
             }
             self.config.smartcard_active = false;
-            self.config.save();
+            self.save_config();
             self.feedback = "Smartcard auto-tracking OFF.".into();
             return;
         }
@@ -77,7 +92,7 @@ impl App {
             ReaderProbe::Available => {
                 self.watch_process = Some(SmartcardWatchProcess::spawn());
                 self.config.smartcard_active = true;
-                self.config.save();
+                self.save_config();
                 self.feedback = "Smartcard auto-tracking ON.".into();
             }
             ReaderProbe::NoReaders => {
@@ -86,6 +101,13 @@ impl App {
             ReaderProbe::Unavailable => {
                 self.feedback = "Cannot activate: PC/SC subsystem unavailable.".into();
             }
+        }
+    }
+
+    /// Persist config and show any error on the feedback line
+    fn save_config(&mut self) {
+        if let Err(err) = self.config.save() {
+            self.feedback = format!("Error: {err}");
         }
     }
 
