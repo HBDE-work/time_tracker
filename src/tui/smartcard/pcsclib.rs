@@ -1,10 +1,14 @@
-use super::state::ReaderState;
-
 /// SCARDCONTEXT: opaque handle returned by SCardEstablishContext
 #[cfg(target_os = "linux")]
 pub(super) type SCardContext = std::ffi::c_long;
 #[cfg(target_os = "windows")]
 pub(super) type SCardContext = usize;
+
+/// SCARDHANDLE: opaque handle returned by SCardConnect
+#[cfg(target_os = "linux")]
+type SCardHandle = std::ffi::c_long;
+#[cfg(target_os = "windows")]
+type SCardHandle = usize;
 
 /// LONG / PCSC_LONG: return type of every SCard* function
 #[cfg(target_os = "linux")]
@@ -19,9 +23,10 @@ pub(super) type PcscDword = u32;
 pub(super) type PcscDword = u32;
 
 pub(super) const SCARD_S_SUCCESS: PcscLong = 0;
-pub(super) const SCARD_SCOPE_USER: PcscDword = 0;
-pub(super) const SCARD_STATE_UNAWARE: PcscDword = 0x0000;
-pub(super) const SCARD_STATE_PRESENT: PcscDword = 0x0020;
+const SCARD_SCOPE_USER: PcscDword = 0;
+const SCARD_SHARE_SHARED: PcscDword = 2;
+const SCARD_PROTOCOL_ANY: PcscDword = 0x0003; // T=0 | T=1
+const SCARD_LEAVE_CARD: PcscDword = 0;
 
 // Function-pointer types of PC/SC C API
 
@@ -41,11 +46,18 @@ type FnListReaders = unsafe extern "C" fn(
     *mut PcscDword,          // pcchReaders (in/out)
 ) -> PcscLong;
 
-type FnGetStatusChange = unsafe extern "C" fn(
-    SCardContext,     // hContext
-    PcscDword,        // dwTimeout (ms)
-    *mut ReaderState, // rgReaderStates
-    PcscDword,        // cReaders
+type FnConnect = unsafe extern "C" fn(
+    SCardContext,            // hContext
+    *const std::ffi::c_char, // szReader
+    PcscDword,               // dwShareMode
+    PcscDword,               // dwPreferredProtocols
+    *mut SCardHandle,        // phCard (out)
+    *mut PcscDword,          // pdwActiveProtocol (out)
+) -> PcscLong;
+
+type FnDisconnect = unsafe extern "C" fn(
+    SCardHandle, // hCard
+    PcscDword,   // dwDisposition
 ) -> PcscLong;
 
 /// Thin wrapper around the dynamically loaded PC/SC library
@@ -54,7 +66,8 @@ pub(super) struct PcscLib {
     establish: FnEstablishContext,
     release: FnReleaseContext,
     list_readers: FnListReaders,
-    get_status_change: FnGetStatusChange,
+    connect: FnConnect,
+    disconnect: FnDisconnect,
 }
 
 impl PcscLib {
@@ -75,16 +88,19 @@ impl PcscLib {
             let list_readers: FnListReaders = *lib.get(b"SCardListReaders\0").ok()?;
 
             #[cfg(target_os = "linux")]
-            let get_status_change: FnGetStatusChange = *lib.get(b"SCardGetStatusChange\0").ok()?;
+            let connect: FnConnect = *lib.get(b"SCardConnect\0").ok()?;
             #[cfg(target_os = "windows")]
-            let get_status_change: FnGetStatusChange = *lib.get(b"SCardGetStatusChangeA\0").ok()?;
+            let connect: FnConnect = *lib.get(b"SCardConnectA\0").ok()?;
+
+            let disconnect: FnDisconnect = *lib.get(b"SCardDisconnect\0").ok()?;
 
             Some(Self {
                 _lib: lib,
                 establish,
                 release,
                 list_readers,
-                get_status_change,
+                connect,
+                disconnect,
             })
         }
     }
@@ -146,14 +162,28 @@ impl PcscLib {
         std::ffi::CString::new(&buf[..first_end]).ok()
     }
 
-    /// Queries whether a card is present in the given reader currently
-    /// (non-blocking, timeout = 0)
+    /// Attempt to connect to a card in the given reader
+    ///
+    /// Returns `true` if a card is present and responsive
+    /// The connection is released immediately
     pub(super) fn is_card_present(&self, ctx: SCardContext, reader: &std::ffi::CStr) -> bool {
-        let mut state = ReaderState::new(reader.as_ptr());
-        let rc = unsafe { (self.get_status_change)(ctx, 0, &mut state, 1) };
-        if rc != SCARD_S_SUCCESS {
-            return false;
+        let mut handle: SCardHandle = 0;
+        let mut protocol: PcscDword = 0;
+        let rc = unsafe {
+            (self.connect)(
+                ctx,
+                reader.as_ptr(),
+                SCARD_SHARE_SHARED,
+                SCARD_PROTOCOL_ANY,
+                &mut handle,
+                &mut protocol,
+            )
+        };
+        if rc == SCARD_S_SUCCESS {
+            unsafe { (self.disconnect)(handle, SCARD_LEAVE_CARD) };
+            true
+        } else {
+            false
         }
-        (state.event_state & SCARD_STATE_PRESENT) != 0
     }
 }

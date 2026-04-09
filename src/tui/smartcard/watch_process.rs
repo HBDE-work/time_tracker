@@ -74,7 +74,7 @@ impl SmartcardWatchProcess {
         self.stop.store(true, std::sync::atomic::Ordering::Relaxed);
     }
 
-    /// The actual polling loop running on the background thread
+    /// polling loop running on the background thread
     fn poll_loop(tx: &mpsc::Sender<CardEvent>, stop: &std::sync::atomic::AtomicBool) {
         const POLL_INTERVAL: Duration = Duration::from_millis(500);
 
@@ -82,22 +82,30 @@ impl SmartcardWatchProcess {
         let Some(ctx) = lib.establish_context() else {
             return;
         };
+        let Some(reader) = lib.first_reader(ctx) else {
+            lib.release_context(ctx);
+            return;
+        };
 
         let mut card_present = false;
 
+        // Check initial state and send Inserted if card is already in
+        let initial = lib.is_card_present(ctx, &reader);
+        if initial {
+            let _ = tx.send(CardEvent::Inserted);
+            card_present = true;
+        }
+
         while !stop.load(std::sync::atomic::Ordering::Relaxed) {
-            // Re-discover the reader each iteration so we survive reader
-            // reconnects (e.g. USB unplug/replug)
-            if let Some(reader) = lib.first_reader(ctx) {
-                let present = lib.is_card_present(ctx, &reader);
-                if present && !card_present {
-                    let _ = tx.send(CardEvent::Inserted);
-                } else if !present && card_present {
-                    let _ = tx.send(CardEvent::Removed);
-                }
-                card_present = present;
-            }
             thread::sleep(POLL_INTERVAL);
+
+            let present = lib.is_card_present(ctx, &reader);
+            if present && !card_present {
+                let _ = tx.send(CardEvent::Inserted);
+            } else if !present && card_present {
+                let _ = tx.send(CardEvent::Removed);
+            }
+            card_present = present;
         }
 
         lib.release_context(ctx);

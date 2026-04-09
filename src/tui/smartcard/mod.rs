@@ -1,5 +1,4 @@
 mod pcsclib;
-mod state;
 mod watch_process;
 
 pub(crate) use watch_process::CardEvent;
