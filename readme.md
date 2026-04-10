@@ -1,11 +1,15 @@
 
 # Tracker - Track Worktime Today
 
-- I was so annoyed by the time tracking tool of my company that I built my own.
-- It just tracks a single time with pauses per day, nothing more nothing less.
-- Data is stored as JSON per day under `~/.config/time_tracking/` (Linux) or `%APPDATA%/time_tracking/` (Windows).
-- Run `tracker go` when you start, `tracker pause` for breaks, `tracker stop` when you're done.
-- Check your hours with `tracker status` or look up past days like `tracker status monday 23`.
+- I was so annoyed by the time tracking tool of my company that I built my own
+- tracker is capable to track time within multiple sequential sessions with pauses per day
+    - time per session can be sliced further into tasks (optionally assigned to number `0 - 9`)
+- optionally autotrack via (un-) plugging a Smartcard
+- Data is stored as TOMLs per day under `~/.config/time_tracking/` (Linux) or `%APPDATA%/time_tracking/` (Windows)
+- Run `tracker go` when you start, `tracker pause` for breaks, `tracker stop` when you're done
+- Check your hours with `tracker status` or look up past days like `tracker status monday 23`
+
+---
 
 ## Installation
 
@@ -13,16 +17,18 @@
 
 `cargo install time-tracker-cli`
 
-This installs the binary as `tracker` in your Cargo bin directory.
+This installs the binary as `tracker` in your Cargo bin directory
+
+---
 
 ## TUI Mode
 
-- Just run `tracker` without any subcommand and the TUI launches.
-- Upper panel shows the available commands: `[g]` Go, `[p]` Pause, `[s]` Stop.
-- Lower panel shows today's status and auto-refreshes every minute.
-- Press `q` or `Esc` to quit.
+- Just run `tracker` without any subcommand and the TUI launches
+- Press `q` or `Esc` to quit
 
 ![TUI Mode](https://github.com/HBDE-work/time_tracker/blob/master/docs/images/tui_mode.png?raw=true)
+
+---
 
 ## CLI Reference
 
@@ -32,8 +38,9 @@ This installs the binary as `tracker` in your Cargo bin directory.
 
 ### Commands
 
-#### `go`:                  Start or resume tracking
+#### `go`:                  Start or resume tracking (optionally for a named task)
 - args:
+    - `-t, --task <TASK>`:    Track a named task (e.g. --task "Code Review")
     - `-h, --help`:    Print help
 
 #### `pause`:               Pause the current tracking
@@ -61,3 +68,16 @@ This installs the binary as `tracker` in your Cargo bin directory.
 - `-V, --version`:           Print version
 
 <!-- CLAP_DOC_GEN_END -->
+
+---
+
+## Development
+
+### Building
+
+- this repo uses [cargo make](https://github.com/sagiegurari/cargo-make) as build helper
+- the app can be crosscompiled for both Linux and Windows using `cargo make deploy`
+    - cargo will crash if a necessary toolchains are not installed
+- a zip package can be created by running `cargo make package`
+
+---
