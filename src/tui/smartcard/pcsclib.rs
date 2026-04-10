@@ -17,8 +17,13 @@ pub(super) type PcscLong = std::ffi::c_long;
 pub(super) type PcscLong = std::ffi::c_long;
 
 /// DWORD of PC/SC API
+///
+/// pcsclite on Linux defines DWORD as `unsigned long` (8 bytes on x86_64)
+/// while on Windows DWORD is always `u32` (LLP64 data model)
+///
+/// Using the wrong width corrupts the stack in release builds
 #[cfg(target_os = "linux")]
-pub(super) type PcscDword = u32;
+pub(super) type PcscDword = std::ffi::c_ulong;
 #[cfg(target_os = "windows")]
 pub(super) type PcscDword = u32;
 
@@ -85,7 +90,10 @@ impl PcscLib {
         unsafe {
             let establish: FnEstablishContext = *lib.get(b"SCardEstablishContext\0").ok()?;
             let release: FnReleaseContext = *lib.get(b"SCardReleaseContext\0").ok()?;
+            #[cfg(target_os = "linux")]
             let list_readers: FnListReaders = *lib.get(b"SCardListReaders\0").ok()?;
+            #[cfg(target_os = "windows")]
+            let list_readers: FnListReaders = *lib.get(b"SCardListReadersA\0").ok()?;
 
             #[cfg(target_os = "linux")]
             let connect: FnConnect = *lib.get(b"SCardConnect\0").ok()?;
