@@ -1,40 +1,36 @@
 use chrono::{Duration, Local, NaiveTime};
 
+use crate::data::glyphs::CLI;
 use crate::data::{DayRecord, TaskEvent};
 use crate::storage::save_record;
 
 use super::actions::{format_duration, today_record};
 
-/// Begin tracking a named task
-///
-/// Any previously-open task timespan is closed first so the record stays consistent
-///
-/// Returns feedback string for the TUI / CLI
 pub(crate) fn start_task(task_name: &str) -> String {
     let mut record = today_record();
     let now = Local::now().time();
 
-    // Close a running task, if
     let _prev = suspend_current_task(&mut record, now);
 
-    let timespan = TaskEvent {
+    let Some(session) = record.current_session_mut() else {
+        return "No active session. Use 'go' first.".into();
+    };
+
+    session.task_events.push(TaskEvent {
         task: task_name.to_owned(),
         start: now,
         end: None,
-    };
-    record.task_events.push(timespan);
+    });
     save_record(&record);
 
     format!(
-        "▶ Task \"{}\" started at {}",
+        "{} Task \"{}\" started at {}",
+        CLI.task_playing,
         task_name,
-        now.format("%H:%M")
+        now.format("%H:%M"),
     )
 }
 
-/// Stop whichever task is currently open and return to global time
-///
-/// Returns `None` when no task was open
 pub(crate) fn stop_active_task() -> Option<String> {
     let mut record = today_record();
     let now = Local::now().time();
@@ -46,9 +42,9 @@ pub(crate) fn stop_active_task() -> Option<String> {
     feedback
 }
 
-/// Inspect the current record and return the `name` of the running task | `None` when tracking global time
 pub(crate) fn active_task_name(record: &DayRecord) -> Option<&str> {
-    record
+    let session = record.current_session()?;
+    session
         .task_events
         .iter()
         .rev()
@@ -56,35 +52,31 @@ pub(crate) fn active_task_name(record: &DayRecord) -> Option<&str> {
         .map(|te| te.task.as_str())
 }
 
-/// Aggregate per-task durations for today
+/// Aggregates per-task durations across all sessions
 ///
-/// Open timespans (still running) count up to `now`
+/// Open timespans count up to now
 ///
-/// Returns a vec of `(task_name, total_duration)` in the order each task
-/// was first used today (chronological)
+/// Returns tasks in the order they were first used (chronological)
 pub(crate) fn calculate_task_durations(record: &DayRecord) -> Vec<(String, Duration)> {
     let now = Local::now().time();
     let mut totals: Vec<(String, Duration)> = Vec::new();
 
-    for te in &record.task_events {
-        let stop = te.end.unwrap_or(now);
-        let elapsed = stop - te.start;
+    for session in &record.sessions {
+        for te in &session.task_events {
+            let stop = te.end.unwrap_or(now);
+            let elapsed = stop - te.start;
 
-        if let Some(entry) = totals.iter_mut().find(|(name, _)| name == &te.task) {
-            entry.1 += elapsed;
-        } else {
-            totals.push((te.task.clone(), elapsed));
+            if let Some(entry) = totals.iter_mut().find(|(name, _)| name == &te.task) {
+                entry.1 += elapsed;
+            } else {
+                totals.push((te.task.clone(), elapsed));
+            }
         }
     }
 
     totals
 }
 
-/// Produce a multi-line summary suitable for `tracker status` CLI output
-///
-/// `total_worked` is the overall tracked time so we can show unassigned time
-///
-/// Returns an empty string when there are no task events
 pub(crate) fn format_task_summary(record: &DayRecord, total_worked: Duration) -> String {
     let durations = calculate_task_durations(record);
     if durations.is_empty() {
@@ -96,7 +88,11 @@ pub(crate) fn format_task_summary(record: &DayRecord, total_worked: Duration) ->
 
     for (name, dur) in &durations {
         let running = current == Some(name.as_str());
-        let marker = if running { " ▶ " } else { "" };
+        let marker = if running {
+            format!(" {} ", CLI.task_playing)
+        } else {
+            String::new()
+        };
         buf.push_str(&format!("    {marker}{name}: {}\n", format_duration(*dur)));
     }
 
@@ -105,19 +101,16 @@ pub(crate) fn format_task_summary(record: &DayRecord, total_worked: Duration) ->
     if unassigned.num_seconds() > 0 {
         buf.push_str(&format!(
             "\n    Unassigned: {}\n",
-            format_duration(unassigned)
+            format_duration(unassigned),
         ));
     }
 
     buf
 }
 
-/// Close the most-recent open task timespan by writing `end = at`
-///
-/// Returns a feedback message describing what was closed, or `None` if nothing was open
 fn suspend_current_task(record: &mut DayRecord, at: NaiveTime) -> Option<String> {
-    // Walk backwards to find the first timespan with no `end`
-    let open = record
+    let session = record.current_session_mut()?;
+    let open = session
         .task_events
         .iter_mut()
         .rev()
@@ -127,7 +120,8 @@ fn suspend_current_task(record: &mut DayRecord, at: NaiveTime) -> Option<String>
     let elapsed = at - open.start;
 
     let msg = format!(
-        "⏹ Task \"{}\" suspended ({})",
+        "{} Task \"{}\" suspended ({})",
+        CLI.task_stopped,
         open.task,
         format_duration(elapsed),
     );

@@ -5,12 +5,13 @@ use ratatui::style::Style;
 use ratatui::text::Line;
 use ratatui::text::Span;
 
+use crate::data::DayRecord;
 use crate::data::EventKind;
+use crate::data::glyphs::TUI;
 use crate::storage::TrackerConfig;
 use crate::tracking_logic::calculate_task_durations;
 use crate::tracking_logic::calculate_worked;
 use crate::tracking_logic::format_duration;
-use crate::tracking_logic::last_event_kind;
 use crate::tracking_logic::today_record;
 
 use super::smartcard::ReaderProbe;
@@ -42,12 +43,6 @@ pub(crate) fn render_actions_column() -> Vec<Line<'static>> {
     content
 }
 
-/// Renders the configured task slots in a 3-column grid.
-///
-/// Only slots with a name are shown.  The active task is highlighted
-/// with `▶` and bold green.  Up to 4 rows × 3 columns = 12 positions
-/// (we only use 0 - 9).  Each cell is padded to a fixed width so the
-/// `[N]` labels align vertically.
 pub(crate) fn render_task_indicators(
     config: &TrackerConfig,
     active_task: Option<u8>,
@@ -70,7 +65,7 @@ pub(crate) fn render_task_indicators(
 
             // Build the cell text and truncate/pad to COL_WIDTH
             let (prefix, display_name) = if is_active {
-                (format!("[{slot}]▶"), *name)
+                (format!("[{slot}]{}", TUI.task_playing), *name)
             } else {
                 (format!("[{slot}] "), *name)
             };
@@ -92,7 +87,8 @@ pub(crate) fn render_task_indicators(
                     format!("[{slot}]"),
                     Style::new().fg(Color::Green).add_modifier(Modifier::BOLD),
                 ));
-                let padded_name = format!("▶{truncated:<pad$}", pad = max_name);
+                let play = TUI.task_playing;
+                let padded_name = format!("{play}{truncated:<pad$}", pad = max_name);
                 timespans.push(Span::styled(padded_name, style));
             } else {
                 timespans.push(Span::styled(
@@ -194,23 +190,20 @@ pub(crate) fn render_feedback_line(feedback: &str) -> Line<'_> {
     ))
 }
 
-/// Produces the text content for the lower "status" panel.
-///
-/// Layout (top -> bottom, summary pinned at top):
-///   1. Date header + Total + tracking indicator
-///   2. Task durations (if any) + unassigned
-///   3. Last-refresh timestamp
-///   4. Event log in reverse chronological order (newest first)
 pub(crate) fn render_status_panel() -> Vec<Line<'static>> {
     let record = today_record();
-    let actively_running = last_event_kind(&record) == Some(&EventKind::Go);
+    let actively_running = record.has_active_session();
     let worked = calculate_worked(&record, actively_running);
 
     let mut content: Vec<Line<'static>> = Vec::new();
 
     content.push(Line::from(vec![
         Span::styled(
-            format!("── {} ", record.date.format("%A, %Y-%m-%d")),
+            format!(
+                "{} {} ",
+                TUI.horizontal_rule,
+                record.date.format("%A, %Y-%m-%d")
+            ),
             Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD),
         ),
         Span::styled("Total: ", Style::new().add_modifier(Modifier::BOLD)),
@@ -219,45 +212,13 @@ pub(crate) fn render_status_panel() -> Vec<Line<'static>> {
             Style::new().fg(Color::White).add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            if actively_running {
-                "  ⏳ tracking"
-            } else {
-                ""
-            },
+            if actively_running { "  tracking" } else { "" },
             Style::new().fg(Color::Green).add_modifier(Modifier::ITALIC),
         ),
     ]));
 
-    // Task durations
-    let task_durations = calculate_task_durations(&record);
-    if !task_durations.is_empty() {
-        let active_name = crate::tracking_logic::active_task_name(&record);
-        for (name, dur) in &task_durations {
-            let is_running = active_name == Some(name.as_str());
-            let style = if is_running {
-                Style::new().fg(Color::Green).add_modifier(Modifier::BOLD)
-            } else {
-                Style::new().fg(Color::White)
-            };
-            let marker = if is_running { " ▶ " } else { "" };
-            content.push(Line::from(Span::styled(
-                format!("  {marker}{name}: {}", format_duration(*dur)),
-                style,
-            )));
-        }
+    render_task_durations(&record, worked, &mut content);
 
-        // Unassigned time = total worked − sum of task durations
-        let task_total: chrono::Duration = task_durations.iter().map(|(_, d)| *d).sum();
-        let unassigned = worked - task_total;
-        if unassigned.num_seconds() > 0 {
-            content.push(Line::from(Span::styled(
-                format!("\n  Unassigned: {}", format_duration(unassigned)),
-                Style::new().fg(Color::DarkGray),
-            )));
-        }
-    }
-
-    // Last refresh (pinned in the summary area, not at the bottom)
     content.push(Line::raw(""));
     content.push(Line::from(Span::styled(
         format!("  Last refresh: {}", Local::now().format("%H:%M:%S")),
@@ -266,26 +227,85 @@ pub(crate) fn render_status_panel() -> Vec<Line<'static>> {
 
     content.push(Line::raw(""));
 
-    for entry in record.events.iter().rev() {
-        content.push(Line::from(vec![
-            Span::styled(
-                format!("  {} ", entry.time.format("%H:%M")),
-                Style::new().fg(Color::DarkGray),
-            ),
-            Span::styled(
-                format!("{}", entry.kind),
-                Style::new().fg(entry.kind.color()),
-            ),
-        ]));
-    }
+    render_session_events(&record, &mut content);
 
     content
 }
 
-/// Renders the task name editor (shown when F1 is active).
-///
-/// Shows all 10 slots. The slot currently being edited gets a cursor-like
-/// rendering of the in-progress buffer.
+fn render_task_durations(
+    record: &DayRecord,
+    worked: chrono::Duration,
+    content: &mut Vec<Line<'static>>,
+) {
+    let task_durations = calculate_task_durations(record);
+    if task_durations.is_empty() {
+        return;
+    }
+
+    let active_name = crate::tracking_logic::active_task_name(record);
+    for (name, dur) in &task_durations {
+        let is_running = active_name == Some(name.as_str());
+        let style = if is_running {
+            Style::new().fg(Color::Green).add_modifier(Modifier::BOLD)
+        } else {
+            Style::new().fg(Color::White)
+        };
+        let marker = if is_running {
+            format!(" {} ", TUI.task_playing)
+        } else {
+            String::new()
+        };
+        content.push(Line::from(Span::styled(
+            format!("  {marker}{name}: {}", format_duration(*dur)),
+            style,
+        )));
+    }
+
+    let task_total: chrono::Duration = task_durations.iter().map(|(_, d)| *d).sum();
+    let unassigned = worked - task_total;
+    if unassigned.num_seconds() > 0 {
+        content.push(Line::from(Span::styled(
+            format!("  Unassigned: {}", format_duration(unassigned)),
+            Style::new().fg(Color::DarkGray),
+        )));
+    }
+}
+
+fn render_session_events(record: &DayRecord, content: &mut Vec<Line<'static>>) {
+    for session in record.sessions.iter().rev() {
+        let (state_label, state_color) = if session.is_active() {
+            ("tracking", Color::Green)
+        } else if session.is_stopped() {
+            ("stopped", Color::Red)
+        } else {
+            ("paused", Color::Yellow)
+        };
+
+        content.push(Line::from(vec![
+            Span::styled(
+                format!("  Session {} ", session.index),
+                Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(format!("({state_label})"), Style::new().fg(state_color)),
+        ]));
+
+        for entry in session.events.iter().rev() {
+            content.push(Line::from(vec![
+                Span::styled(
+                    format!("    {} ", entry.time.format("%H:%M")),
+                    Style::new().fg(Color::DarkGray),
+                ),
+                Span::styled(
+                    format!("{}", entry.kind),
+                    Style::new().fg(entry.kind.color()),
+                ),
+            ]));
+        }
+
+        content.push(Line::raw(""));
+    }
+}
+
 pub(crate) fn render_task_editor_panel(
     config: &TrackerConfig,
     editing_slot: Option<u8>,
@@ -293,8 +313,11 @@ pub(crate) fn render_task_editor_panel(
 ) -> Vec<Line<'static>> {
     let mut content: Vec<Line<'static>> = Vec::new();
 
+    let rule = TUI.horizontal_rule;
     content.push(Line::from(Span::styled(
-        "── Task Editor  (press a number to edit, Enter to save, Esc to cancel) ──",
+        format!(
+            "{rule} Task Editor  (press a number to edit, Enter to save, Esc to cancel) {rule}"
+        ),
         Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD),
     )));
     content.push(Line::raw(""));
@@ -314,7 +337,7 @@ pub(crate) fn render_task_editor_panel(
                     Style::new().fg(Color::White).add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(
-                    "█",
+                    TUI.cursor_block,
                     Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD),
                 ),
             ]));
@@ -326,7 +349,7 @@ pub(crate) fn render_task_editor_panel(
                 Style::new().fg(Color::White)
             };
             let display = if name.is_empty() {
-                "—".to_owned()
+                TUI.empty_slot.to_owned()
             } else {
                 name.to_owned()
             };

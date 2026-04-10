@@ -11,6 +11,8 @@ use arguments::{Args, Commands};
 use clap::Parser;
 
 fn main() {
+    storage::migrate_legacy_data();
+
     let args = Args::parse();
 
     match args.command {
