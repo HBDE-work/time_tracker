@@ -77,7 +77,7 @@ This installs the binary as `tracker` in your Cargo bin directory
 
 - this repo uses [cargo make](https://github.com/sagiegurari/cargo-make) as build helper
 - the app can be crosscompiled for both Linux and Windows using `cargo make deploy`
-    - cargo will crash if a necessary toolchains are not installed
+    - cargo will crash if necessary toolchains are not installed
 - a zip package can be created by running `cargo make package`
 
 ---
