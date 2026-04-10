@@ -37,8 +37,23 @@ pub(crate) struct Event {
     pub time: NaiveTime,
 }
 
+/// A single timespan spent on a named task
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct TaskEvent {
+    /// Human-readable task name (not the slot number)
+    pub task: String,
+    pub start: NaiveTime,
+    /// `None` while the task is still running
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end: Option<NaiveTime>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct DayRecord {
     pub date: NaiveDate,
     pub events: Vec<Event>,
+
+    /// Named-task timespans (absent / empty in legacy files)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub task_events: Vec<TaskEvent>,
 }

@@ -6,6 +6,8 @@ use ratatui::text::Line;
 use ratatui::text::Span;
 
 use crate::data::EventKind;
+use crate::storage::TrackerConfig;
+use crate::tracking_logic::calculate_task_durations;
 use crate::tracking_logic::calculate_worked;
 use crate::tracking_logic::format_duration;
 use crate::tracking_logic::last_event_kind;
@@ -13,15 +15,15 @@ use crate::tracking_logic::today_record;
 
 use super::smartcard::ReaderProbe;
 
-/// Produces the left-hand content of the upper panel: action hotkeys + feedback
-pub(crate) fn render_actions_column(feedback: &str) -> Vec<Line<'_>> {
+/// Produces the left-hand content of the upper panel: action hotkeys
+pub(crate) fn render_actions_column() -> Vec<Line<'static>> {
     let actions: [(&str, char, &EventKind); 3] = [
         ("Go", 'g', &EventKind::Go),
         ("Pause", 'p', &EventKind::Pause),
         ("Stop", 's', &EventKind::Stop),
     ];
 
-    let mut content: Vec<Line<'_>> = Vec::with_capacity(actions.len() + 3);
+    let mut content: Vec<Line<'static>> = Vec::with_capacity(actions.len() + 1);
     content.push(Line::raw(""));
 
     for (name, hotkey, kind) in &actions {
@@ -31,17 +33,80 @@ pub(crate) fn render_actions_column(feedback: &str) -> Vec<Line<'_>> {
                 Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD),
             ),
             Span::styled(
-                *name,
+                name.to_string(),
                 Style::new().fg(kind.color()).add_modifier(Modifier::BOLD),
             ),
         ]));
     }
 
+    content
+}
+
+/// Renders the configured task slots in a 3-column grid.
+///
+/// Only slots with a name are shown.  The active task is highlighted
+/// with `▶` and bold green.  Up to 4 rows × 3 columns = 12 positions
+/// (we only use 0 - 9).  Each cell is padded to a fixed width so the
+/// `[N]` labels align vertically.
+pub(crate) fn render_task_indicators(
+    config: &TrackerConfig,
+    active_task: Option<u8>,
+) -> Vec<Line<'static>> {
+    const COL_WIDTH: usize = 22;
+
+    // Collect configured slots
+    let slots: Vec<(u8, &str)> = (0u8..=9)
+        .filter_map(|s| config.task_name(s).map(|n| (s, n)))
+        .collect();
+
+    let mut content: Vec<Line<'static>> = Vec::new();
     content.push(Line::raw(""));
-    content.push(Line::from(Span::styled(
-        format!("  {feedback}"),
-        Style::new().fg(Color::White).add_modifier(Modifier::ITALIC),
-    )));
+
+    for row in slots.chunks(3) {
+        let mut timespans: Vec<Span<'static>> = Vec::new();
+
+        for (slot, name) in row {
+            let is_active = active_task == Some(*slot);
+
+            // Build the cell text and truncate/pad to COL_WIDTH
+            let (prefix, display_name) = if is_active {
+                (format!("[{slot}]▶"), *name)
+            } else {
+                (format!("[{slot}] "), *name)
+            };
+
+            // Truncate name if it would exceed the column width
+            let prefix_len = prefix.chars().count();
+            let max_name = COL_WIDTH.saturating_sub(prefix_len);
+            let truncated: String = display_name.chars().take(max_name).collect();
+
+            let style = if is_active {
+                Style::new().fg(Color::Green).add_modifier(Modifier::BOLD)
+            } else {
+                Style::new().fg(Color::White)
+            };
+
+            // Render the [N] part in its own color, then the name
+            if is_active {
+                timespans.push(Span::styled(
+                    format!("[{slot}]"),
+                    Style::new().fg(Color::Green).add_modifier(Modifier::BOLD),
+                ));
+                let padded_name = format!("▶{truncated:<pad$}", pad = max_name);
+                timespans.push(Span::styled(padded_name, style));
+            } else {
+                timespans.push(Span::styled(
+                    format!("[{slot}]"),
+                    Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                ));
+                let padded_name = format!(" {truncated:<pad$}", pad = max_name);
+                timespans.push(Span::styled(padded_name, style));
+            }
+        }
+
+        content.push(Line::from(timespans));
+    }
+
     content
 }
 
@@ -52,25 +117,26 @@ pub(crate) fn render_actions_column(feedback: &str) -> Vec<Line<'_>> {
 pub(crate) fn render_toggles_column(
     smartcard_active: bool,
     reader_status: ReaderProbe,
+    task_editor_open: bool,
 ) -> Vec<Line<'static>> {
     let mut content: Vec<Line<'static>> = Vec::new();
     content.push(Line::raw(""));
 
     // F1: Task Editor
-    //
-    // ...
-    //
     let f1_key_style = Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD);
     let f1_label_style = Style::new().fg(Color::White);
-    let f1_state_label = "";
-    let f1_state_color = Color::DarkGray;
+    let (f1_state_label, f1_state_color) = if task_editor_open {
+        ("ON", Color::Green)
+    } else {
+        ("OFF", Color::DarkGray)
+    };
     content.push(Line::from(vec![
-        Span::styled("  [F1] ", f1_key_style),
-        Span::styled("Edit Tasks ", f1_label_style),
         Span::styled(
             f1_state_label,
             Style::new().fg(f1_state_color).add_modifier(Modifier::BOLD),
         ),
+        Span::styled(" Edit Tasks ", f1_label_style),
+        Span::styled("[F1]  ", f1_key_style),
     ]));
 
     // F2: Smartcard auto-tracking
@@ -107,12 +173,12 @@ pub(crate) fn render_toggles_column(
     };
 
     content.push(Line::from(vec![
-        Span::styled("  [F2] ", f2_key_style),
-        Span::styled("Smartcard ", f2_label_style),
         Span::styled(
             f2_state_label,
             Style::new().fg(f2_state_color).add_modifier(Modifier::BOLD),
         ),
+        Span::styled(" Smartcard ", f2_label_style),
+        Span::styled("[F2]  ", f2_key_style),
     ]));
 
     // more toggles...
@@ -120,7 +186,21 @@ pub(crate) fn render_toggles_column(
     content
 }
 
-/// Produces the text content for the lower "status" panel
+/// Single-line feedback styled as italic white text
+pub(crate) fn render_feedback_line(feedback: &str) -> Line<'_> {
+    Line::from(Span::styled(
+        format!(" {feedback}"),
+        Style::new().fg(Color::White).add_modifier(Modifier::ITALIC),
+    ))
+}
+
+/// Produces the text content for the lower "status" panel.
+///
+/// Layout (top -> bottom, summary pinned at top):
+///   1. Date header + Total + tracking indicator
+///   2. Task durations (if any) + unassigned
+///   3. Last-refresh timestamp
+///   4. Event log in reverse chronological order (newest first)
 pub(crate) fn render_status_panel() -> Vec<Line<'static>> {
     let record = today_record();
     let actively_running = last_event_kind(&record) == Some(&EventKind::Go);
@@ -128,13 +208,65 @@ pub(crate) fn render_status_panel() -> Vec<Line<'static>> {
 
     let mut content: Vec<Line<'static>> = Vec::new();
 
+    content.push(Line::from(vec![
+        Span::styled(
+            format!("── {} ", record.date.format("%A, %Y-%m-%d")),
+            Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled("Total: ", Style::new().add_modifier(Modifier::BOLD)),
+        Span::styled(
+            format_duration(worked),
+            Style::new().fg(Color::White).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            if actively_running {
+                "  ⏳ tracking"
+            } else {
+                ""
+            },
+            Style::new().fg(Color::Green).add_modifier(Modifier::ITALIC),
+        ),
+    ]));
+
+    // Task durations
+    let task_durations = calculate_task_durations(&record);
+    if !task_durations.is_empty() {
+        let active_name = crate::tracking_logic::active_task_name(&record);
+        for (name, dur) in &task_durations {
+            let is_running = active_name == Some(name.as_str());
+            let style = if is_running {
+                Style::new().fg(Color::Green).add_modifier(Modifier::BOLD)
+            } else {
+                Style::new().fg(Color::White)
+            };
+            let marker = if is_running { " ▶ " } else { "" };
+            content.push(Line::from(Span::styled(
+                format!("  {marker}{name}: {}", format_duration(*dur)),
+                style,
+            )));
+        }
+
+        // Unassigned time = total worked − sum of task durations
+        let task_total: chrono::Duration = task_durations.iter().map(|(_, d)| *d).sum();
+        let unassigned = worked - task_total;
+        if unassigned.num_seconds() > 0 {
+            content.push(Line::from(Span::styled(
+                format!("\n  Unassigned: {}", format_duration(unassigned)),
+                Style::new().fg(Color::DarkGray),
+            )));
+        }
+    }
+
+    // Last refresh (pinned in the summary area, not at the bottom)
+    content.push(Line::raw(""));
     content.push(Line::from(Span::styled(
-        format!("── {} ──", record.date.format("%A, %Y-%m-%d")),
-        Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+        format!("  Last refresh: {}", Local::now().format("%H:%M:%S")),
+        Style::new().fg(Color::DarkGray),
     )));
+
     content.push(Line::raw(""));
 
-    for entry in &record.events {
+    for entry in record.events.iter().rev() {
         content.push(Line::from(vec![
             Span::styled(
                 format!("  {} ", entry.time.format("%H:%M")),
@@ -147,26 +279,73 @@ pub(crate) fn render_status_panel() -> Vec<Line<'static>> {
         ]));
     }
 
-    if actively_running {
-        content.push(Line::raw(""));
-        content.push(Line::from(Span::styled(
-            "  ⏳ currently tracking",
-            Style::new().fg(Color::Green).add_modifier(Modifier::ITALIC),
-        )));
+    content
+}
+
+/// Renders the task name editor (shown when F1 is active).
+///
+/// Shows all 10 slots. The slot currently being edited gets a cursor-like
+/// rendering of the in-progress buffer.
+pub(crate) fn render_task_editor_panel(
+    config: &TrackerConfig,
+    editing_slot: Option<u8>,
+    editing_buffer: &str,
+) -> Vec<Line<'static>> {
+    let mut content: Vec<Line<'static>> = Vec::new();
+
+    content.push(Line::from(Span::styled(
+        "── Task Editor  (press a number to edit, Enter to save, Esc to cancel) ──",
+        Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+    )));
+    content.push(Line::raw(""));
+
+    for slot in 0u8..=9 {
+        let is_editing = editing_slot == Some(slot);
+
+        if is_editing {
+            // Show the live editing buffer with a block cursor
+            content.push(Line::from(vec![
+                Span::styled(
+                    format!("  [{slot}] "),
+                    Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    editing_buffer.to_owned(),
+                    Style::new().fg(Color::White).add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    "█",
+                    Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                ),
+            ]));
+        } else {
+            let name = config.task_name(slot).unwrap_or("");
+            let name_style = if name.is_empty() {
+                Style::new().fg(Color::DarkGray)
+            } else {
+                Style::new().fg(Color::White)
+            };
+            let display = if name.is_empty() {
+                "—".to_owned()
+            } else {
+                name.to_owned()
+            };
+            content.push(Line::from(vec![
+                Span::styled(
+                    format!("  [{slot}] "),
+                    Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(display, name_style),
+            ]));
+        }
     }
 
     content.push(Line::raw(""));
-    content.push(Line::from(vec![
-        Span::styled("  Total: ", Style::new().add_modifier(Modifier::BOLD)),
-        Span::styled(
-            format_duration(worked),
-            Style::new().fg(Color::White).add_modifier(Modifier::BOLD),
-        ),
-    ]));
-    content.push(Line::raw(""));
     content.push(Line::from(Span::styled(
-        format!("  Last refresh: {}", Local::now().format("%H:%M:%S")),
-        Style::new().fg(Color::DarkGray),
+        "  Press F1 or Esc to close editor",
+        Style::new()
+            .fg(Color::DarkGray)
+            .add_modifier(Modifier::ITALIC),
     )));
 
     content

@@ -4,6 +4,7 @@ use crate::data::EventKind;
 use crate::storage::load_record;
 use crate::tracking_logic::calculate_worked;
 use crate::tracking_logic::format_duration;
+use crate::tracking_logic::format_task_summary;
 use crate::tracking_logic::last_event_kind;
 use crate::tracking_logic::resolve_date;
 
@@ -26,7 +27,13 @@ pub(crate) fn cmd_status(day: Option<String>, week: Option<u32>, year: Option<i3
             if is_today && still_running {
                 println!("  ⏳  currently tracking");
             }
-            println!("  Total: {}", format_duration(worked));
+            println!("\n  Total: {}", format_duration(worked));
+
+            // Task breakdown (only printed when task events exist)
+            let task_summary = format_task_summary(&record, worked);
+            if !task_summary.is_empty() {
+                print!("{task_summary}");
+            }
         }
     }
 }

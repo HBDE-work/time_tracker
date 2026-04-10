@@ -10,8 +10,12 @@ pub(crate) struct Args {
 
 #[derive(Subcommand, Debug)]
 pub(crate) enum Commands {
-    /// Start or resume tracking
-    Go,
+    /// Start or resume tracking (optionally for a named task)
+    Go {
+        /// Track a named task (e.g. --task "Code Review")
+        #[arg(short, long)]
+        task: Option<String>,
+    },
     /// Pause the current tracking
     Pause,
     /// Stop tracking for today

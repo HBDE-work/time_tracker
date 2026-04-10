@@ -14,7 +14,7 @@ fn main() {
     let args = Args::parse();
 
     match args.command {
-        Some(Commands::Go) => commands::cmd_go(),
+        Some(Commands::Go { task }) => commands::cmd_go(task),
         Some(Commands::Pause) => commands::cmd_pause(),
         Some(Commands::Stop) => commands::cmd_stop(),
         Some(Commands::Status { day, week, year }) => commands::cmd_status(day, week, year),

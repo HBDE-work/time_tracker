@@ -20,6 +20,7 @@ pub(crate) fn today_record() -> crate::data::DayRecord {
     load_record(today).unwrap_or(crate::data::DayRecord {
         date: today,
         events: Vec::new(),
+        task_events: Vec::new(),
     })
 }
 
