@@ -4,7 +4,8 @@ use crate::data::glyphs::CLI;
 use crate::data::{DayRecord, TaskEvent};
 use crate::storage::save_record;
 
-use super::actions::{format_duration, today_record};
+use super::format_duration;
+use super::today_record;
 
 pub(crate) fn start_task(task_name: &str) -> String {
     let mut record = today_record();
@@ -55,21 +56,19 @@ pub(crate) fn active_task_name(record: &DayRecord) -> Option<&str> {
 /// Aggregates per-task durations across all sessions
 ///
 /// Open timespans count up to now
-///
-/// Returns tasks in the order they were first used (chronological)
 pub(crate) fn calculate_task_durations(record: &DayRecord) -> Vec<(String, Duration)> {
     let now = Local::now().time();
     let mut totals: Vec<(String, Duration)> = Vec::new();
 
     for session in &record.sessions {
-        for te in &session.task_events {
-            let stop = te.end.unwrap_or(now);
-            let elapsed = stop - te.start;
+        for task_event in &session.task_events {
+            let stop = task_event.end.unwrap_or(now);
+            let elapsed = stop - task_event.start;
 
-            if let Some(entry) = totals.iter_mut().find(|(name, _)| name == &te.task) {
+            if let Some(entry) = totals.iter_mut().find(|(name, _)| name == &task_event.task) {
                 entry.1 += elapsed;
             } else {
-                totals.push((te.task.clone(), elapsed));
+                totals.push((task_event.task.clone(), elapsed));
             }
         }
     }
@@ -84,28 +83,31 @@ pub(crate) fn format_task_summary(record: &DayRecord, total_worked: Duration) ->
     }
 
     let current = active_task_name(record);
-    let mut buf = String::from("\n  Tasks:\n");
+    let mut summary = String::from("\n  Tasks:\n");
 
-    for (name, dur) in &durations {
+    for (name, duration) in &durations {
         let running = current == Some(name.as_str());
         let marker = if running {
             format!(" {} ", CLI.task_playing)
         } else {
             String::new()
         };
-        buf.push_str(&format!("    {marker}{name}: {}\n", format_duration(*dur)));
+        summary.push_str(&format!(
+            "    {marker}{name}: {}\n",
+            format_duration(*duration)
+        ));
     }
 
     let task_total: Duration = durations.iter().map(|(_, d)| *d).sum();
     let unassigned = total_worked - task_total;
     if unassigned.num_seconds() > 0 {
-        buf.push_str(&format!(
+        summary.push_str(&format!(
             "\n    Unassigned: {}\n",
             format_duration(unassigned),
         ));
     }
 
-    buf
+    summary
 }
 
 fn suspend_current_task(record: &mut DayRecord, at: NaiveTime) -> Option<String> {
@@ -114,7 +116,7 @@ fn suspend_current_task(record: &mut DayRecord, at: NaiveTime) -> Option<String>
         .task_events
         .iter_mut()
         .rev()
-        .find(|te| te.end.is_none())?;
+        .find(|task_event| task_event.end.is_none())?;
 
     open.end = Some(at);
     let elapsed = at - open.start;

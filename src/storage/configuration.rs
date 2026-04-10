@@ -73,27 +73,19 @@ impl TrackerConfig {
         }
     }
 
-    /// Load the configuration
-    ///
-    /// Transparently migrates the old flat format (`smartcard_active = true`)
-    /// into the new sectioned format and re-saves
-    ///
-    /// Returns the default if the file is missing or unreadable
+    /// Load config from disk and fall back to defaults when missing or invalid
     pub(crate) fn load() -> Self {
         let raw = match fs::read_to_string(config_path()) {
             Ok(s) => s,
             Err(_) => return Self::default(),
         };
 
-        // Try the current sectioned format first
-        if let Ok(cfg) = toml::from_str::<TrackerConfig>(&raw) {
-            // if the raw text contains a `[smartcard]` table we it's the new format
-            if raw.contains("[smartcard]") || raw.contains("[tasks]") {
-                return cfg;
-            }
+        if let Ok(cfg) = toml::from_str::<TrackerConfig>(&raw)
+            && (raw.contains("[smartcard]") || raw.contains("[tasks]"))
+        {
+            return cfg;
         }
 
-        // Fall back to the legacy flat format and migrate
         if let Ok(legacy) = toml::from_str::<LegacyConfig>(&raw) {
             let migrated = TrackerConfig {
                 smartcard: SmartcardConfig {
@@ -101,7 +93,6 @@ impl TrackerConfig {
                 },
                 tasks: BTreeMap::new(),
             };
-            // Best-effort migration write
             let _ = migrated.save();
             return migrated;
         }

@@ -25,11 +25,11 @@ pub(crate) fn resolve_date(day: Option<String>, week: Option<u32>, year: Option<
             let weekday =
                 parse_weekday(&day_str).unwrap_or_else(|| panic!("Unknown weekday: '{day_str}'"));
 
-            let y = year.unwrap_or(now.year());
-            let w = week.unwrap_or(now.iso_week().week());
+            let year = year.unwrap_or(now.year());
+            let week = week.unwrap_or(now.iso_week().week());
 
-            NaiveDate::from_isoywd_opt(y, w, weekday)
-                .unwrap_or_else(|| panic!("Invalid date: year={y}, week={w}, day={day_str}"))
+            NaiveDate::from_isoywd_opt(year, week, weekday)
+                .unwrap_or_else(|| panic!("Invalid date: year={year}, week={week}, day={day_str}"))
         }
     }
 }

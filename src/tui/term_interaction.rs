@@ -23,33 +23,35 @@ pub(crate) fn run_tui() -> io::Result<()> {
     let mut next_refresh = Instant::now();
 
     while !app.should_quit {
-        // render
         terminal.draw(|surface| {
             let regions = ratatui::layout::Layout::vertical([
-                ratatui::layout::Constraint::Length(8), // Commands box
-                ratatui::layout::Constraint::Length(1), // Feedback line
-                ratatui::layout::Constraint::Fill(1),   // Status / Editor
+                ratatui::layout::Constraint::Length(8),
+                ratatui::layout::Constraint::Length(1),
+                ratatui::layout::Constraint::Fill(1),
             ])
             .split(surface.area());
 
-            let cmd_block = ratatui::widgets::Block::bordered()
+            let commands_block = ratatui::widgets::Block::bordered()
                 .title("  Commands (q to quit)  ")
                 .border_style(ratatui::style::Style::new().fg(ratatui::style::Color::Cyan));
-            let cmd_inner = cmd_block.inner(regions[0]);
-            surface.render_widget(cmd_block, regions[0]);
+            let commands_area = commands_block.inner(regions[0]);
+            surface.render_widget(commands_block, regions[0]);
 
-            let cols = ratatui::layout::Layout::horizontal([
-                ratatui::layout::Constraint::Fill(1), // GPS actions (left)
-                ratatui::layout::Constraint::Fill(2), // task indicators (middle, wider)
-                ratatui::layout::Constraint::Min(26), // F-key toggles (right)
+            let command_columns = ratatui::layout::Layout::horizontal([
+                ratatui::layout::Constraint::Fill(1),
+                ratatui::layout::Constraint::Fill(2),
+                ratatui::layout::Constraint::Min(26),
             ])
-            .split(cmd_inner);
+            .split(commands_area);
 
             let actions = render_actions_column();
-            surface.render_widget(ratatui::widgets::Paragraph::new(actions), cols[0]);
+            surface.render_widget(
+                ratatui::widgets::Paragraph::new(actions),
+                command_columns[0],
+            );
 
             let tasks = render_task_indicators(&app.config, app.active_task);
-            surface.render_widget(ratatui::widgets::Paragraph::new(tasks), cols[1]);
+            surface.render_widget(ratatui::widgets::Paragraph::new(tasks), command_columns[1]);
 
             let toggles = render_toggles_column(
                 app.config.smartcard_active(),
@@ -59,14 +61,12 @@ pub(crate) fn run_tui() -> io::Result<()> {
             surface.render_widget(
                 ratatui::widgets::Paragraph::new(toggles)
                     .alignment(ratatui::layout::Alignment::Right),
-                cols[2],
+                command_columns[2],
             );
 
-            // Feedback line
-            let fb = render_feedback_line(&app.feedback);
-            surface.render_widget(ratatui::widgets::Paragraph::new(fb), regions[1]);
+            let feedback_line = render_feedback_line(&app.feedback);
+            surface.render_widget(ratatui::widgets::Paragraph::new(feedback_line), regions[1]);
 
-            // Lower panel
             if app.task_editor_open {
                 let editor_content =
                     render_task_editor_panel(&app.config, app.editing_slot, &app.editing_buffer);
@@ -91,12 +91,8 @@ pub(crate) fn run_tui() -> io::Result<()> {
             }
         })?;
 
-        // check for smartcard events coming from the background thread
         app.process_card_events();
 
-        // poll for input or tick
-        // Use a shorter wait when smartcard watching is active so the
-        // UI reacts quickly to card-inserted / card-removed signals
         let max_wait = if app.config.smartcard_active() {
             Duration::from_millis(250)
         } else {

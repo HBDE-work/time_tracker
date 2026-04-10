@@ -7,14 +7,8 @@ use crate::data::Session;
 use crate::storage::load_record;
 use crate::storage::save_record;
 
+use super::formatting::format_duration;
 use super::timer::calculate_worked;
-
-pub(crate) fn format_duration(d: chrono::Duration) -> String {
-    let total_minutes = d.num_minutes();
-    let hours = total_minutes / 60;
-    let minutes = total_minutes % 60;
-    format!("{hours}h {minutes:02}m")
-}
 
 pub(crate) fn today_record() -> DayRecord {
     let today = Local::now().date_naive();
@@ -22,13 +16,13 @@ pub(crate) fn today_record() -> DayRecord {
 }
 
 pub(crate) fn execute_action(action: EventKind) -> String {
-    let mut record = today_record();
-    let now = Local::now().time();
+    let mut day_record = today_record();
+    let current_time = Local::now().time();
 
     match action {
-        EventKind::Go => execute_go(&mut record, now),
-        EventKind::Pause => execute_pause(&mut record, now),
-        EventKind::Stop => execute_stop(&mut record, now),
+        EventKind::Go => execute_go(&mut day_record, current_time),
+        EventKind::Pause => execute_pause(&mut day_record, current_time),
+        EventKind::Stop => execute_stop(&mut day_record, current_time),
     }
 }
 
@@ -60,7 +54,6 @@ fn execute_go(record: &mut DayRecord, now: chrono::NaiveTime) -> String {
             format!("Session {index}: Started at {}", now.format("%H:%M"))
         }
     } else {
-        // Resume within existing paused session
         let session = record.current_session_mut().unwrap();
         session.events.push(Event {
             kind: EventKind::Go,
