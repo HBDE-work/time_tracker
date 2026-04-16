@@ -104,4 +104,13 @@ impl DayRecord {
     pub(crate) fn has_active_session(&self) -> bool {
         self.current_session().is_some_and(|s| !s.is_stopped())
     }
+
+    pub(crate) fn is_tracking(&self) -> bool {
+        self.current_session().is_some_and(|s| s.is_active())
+    }
+
+    pub(crate) fn is_paused(&self) -> bool {
+        self.current_session()
+            .is_some_and(|s| !s.is_active() && !s.is_stopped())
+    }
 }

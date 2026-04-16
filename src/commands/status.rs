@@ -40,11 +40,15 @@ pub(crate) fn cmd_status(day: Option<String>, week: Option<u32>, year: Option<i3
                 }
             }
 
-            if still_running {
-                println!("\n  Currently tracking");
-            }
+            let pause_indicator = if is_today && record.is_paused() {
+                " (paused)"
+            } else if is_today && record.is_tracking() {
+                " (tracking)"
+            } else {
+                ""
+            };
 
-            println!("\n  Total: {}", format_duration(worked));
+            println!("\n  Total: {}{}", format_duration(worked), pause_indicator);
 
             let task_summary = format_task_summary(&record, worked);
             if !task_summary.is_empty() {

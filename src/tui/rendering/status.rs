@@ -19,25 +19,41 @@ pub(crate) fn render_status_panel() -> Vec<Line<'static>> {
 
     let mut content: Vec<Line<'static>> = Vec::new();
 
-    content.push(Line::from(vec![
+    let mut state_spans = Vec::new();
+    if record.is_tracking() {
+        state_spans.push(Span::styled(
+            " | tracking",
+            Style::new().fg(Color::Green).add_modifier(Modifier::ITALIC),
+        ));
+    }
+    if record.is_paused() {
+        state_spans.push(Span::styled(
+            " | paused",
+            Style::new()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::ITALIC),
+        ));
+    }
+
+    let mut headline_spans = vec![
         Span::styled(
             format!(
-                "{} {} ",
+                " {} {} {} ",
                 TUI.horizontal_rule,
-                record.date.format("%A, %Y-%m-%d")
+                record.date.format("%A, %Y-%m-%d"),
+                TUI.horizontal_rule
             ),
             Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD),
         ),
-        Span::styled("Total: ", Style::new().add_modifier(Modifier::BOLD)),
+        Span::styled("| Total: ", Style::new().add_modifier(Modifier::BOLD)),
         Span::styled(
             format_duration(worked),
             Style::new().fg(Color::White).add_modifier(Modifier::BOLD),
         ),
-        Span::styled(
-            if actively_running { "  tracking" } else { "" },
-            Style::new().fg(Color::Green).add_modifier(Modifier::ITALIC),
-        ),
-    ]));
+    ];
+    headline_spans.extend(state_spans);
+
+    content.push(Line::from(headline_spans));
 
     render_task_durations(&record, worked, &mut content);
 
