@@ -9,6 +9,7 @@ pub(crate) struct Glyphs {
     pub empty_slot: &'static str,
     pub cursor_block: &'static str,
     pub smartcard: &'static str,
+    pub book: &'static str,
 }
 
 pub(crate) const CLI: Glyphs = Glyphs {
@@ -18,6 +19,7 @@ pub(crate) const CLI: Glyphs = Glyphs {
     empty_slot: "-",
     cursor_block: "_",
     smartcard: "[card]",
+    book: "[book]",
 };
 
 pub(crate) const TUI: Glyphs = Glyphs {
@@ -27,4 +29,5 @@ pub(crate) const TUI: Glyphs = Glyphs {
     empty_slot: "\u{2014}",              // —
     cursor_block: "\u{2588}",            // █
     smartcard: "\u{1F511}",              // 🔑
+    book: "\u{1F56E}",                   // 🕮
 };

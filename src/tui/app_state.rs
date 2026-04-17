@@ -3,6 +3,8 @@ use crossterm::event::KeyCode;
 use crate::data::EventKind;
 use crate::data::glyphs::TUI;
 use crate::storage::TrackerConfig;
+use crate::storage::detect_editor;
+use crate::storage::toml_path;
 use crate::tracking_logic::active_task_name;
 use crate::tracking_logic::execute_action;
 use crate::tracking_logic::start_task;
@@ -89,6 +91,7 @@ impl App {
             KeyCode::Char('g') => self.handle_go(),
             KeyCode::Char('p') => self.handle_pause(),
             KeyCode::Char('s') => self.handle_stop(),
+            KeyCode::Char('e') => self.handle_edit_day(),
             KeyCode::F(1) => self.toggle_task_editor(),
             KeyCode::F(2) => self.toggle_smartcard(),
             KeyCode::F(3) => self.toggle_history_mode(),
@@ -249,6 +252,31 @@ impl App {
             Some(tmsg) => format!("{tmsg} | {base_msg}"),
             None => base_msg,
         };
+    }
+
+    pub(crate) fn handle_edit_day(&mut self) {
+        // Check if editor is available
+        if detect_editor().is_none() {
+            self.feedback = "No text editor found. Set EDITOR environment variable.".into();
+            return;
+        }
+
+        let viewed_date = self.get_viewed_date();
+        let file_path = toml_path(viewed_date);
+
+        // Create file if it doesn't exist
+        if !file_path.exists() {
+            use crate::data::DayRecord;
+            use crate::storage::save_record;
+            let empty_record = DayRecord::new(viewed_date);
+            save_record(&empty_record);
+        }
+
+        self.feedback = format!("Opening {} in editor...", viewed_date.format("%Y-%m-%d"));
+    }
+
+    pub(crate) fn get_toml_path(&self) -> std::path::PathBuf {
+        toml_path(self.get_viewed_date())
     }
 
     fn toggle_task(&mut self, slot: u8) {

@@ -7,7 +7,7 @@ use crate::data::DayRecord;
 use super::data_dir;
 use super::legacy;
 
-fn toml_path(date: NaiveDate) -> PathBuf {
+pub(crate) fn toml_path(date: NaiveDate) -> PathBuf {
     data_dir().join(format!("{date}.toml"))
 }
 

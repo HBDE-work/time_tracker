@@ -114,7 +114,33 @@ pub(crate) fn run_tui() -> io::Result<()> {
             && let event::Event::Key(ev) = event::read()?
             && ev.kind == event::KeyEventKind::Press
         {
+            // Check if this is the edit key before handling
+            let is_edit_key = matches!(ev.code, event::KeyCode::Char('e'));
+
             app.handle_key(ev.code);
+
+            // Handle editor opening with TUI suspension
+            if is_edit_key && !app.task_editor_open {
+                // Suspend TUI
+                restore_terminal(&mut terminal);
+
+                // Open file in editor
+                let file_path = app.get_toml_path();
+                match crate::storage::open_in_editor(&file_path) {
+                    Ok(()) => {
+                        app.feedback = format!(
+                            "Edited {}. Press any key to continue.",
+                            app.get_viewed_date().format("%Y-%m-%d")
+                        );
+                    }
+                    Err(err) => {
+                        app.feedback = format!("Editor error: {}", err);
+                    }
+                }
+
+                // Resume TUI
+                terminal = enter_tui_mode()?;
+            }
         }
 
         if next_refresh.elapsed() >= REFRESH_INTERVAL {

@@ -14,7 +14,7 @@ pub(crate) fn render_actions_column() -> Vec<Line<'static>> {
         ("Stop", 's', &EventKind::Stop),
     ];
 
-    let mut content: Vec<Line<'static>> = Vec::with_capacity(actions.len() + 1);
+    let mut content: Vec<Line<'static>> = Vec::with_capacity(actions.len() + 2);
     content.push(Line::raw(""));
 
     for (name, hotkey, kind) in &actions {
@@ -29,6 +29,18 @@ pub(crate) fn render_actions_column() -> Vec<Line<'static>> {
             ),
         ]));
     }
+
+    // Edit action
+    content.push(Line::from(vec![
+        Span::styled(
+            "  [e] ",
+            Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            "Edit",
+            Style::new().fg(Color::White).add_modifier(Modifier::BOLD),
+        ),
+    ]));
 
     content
 }
