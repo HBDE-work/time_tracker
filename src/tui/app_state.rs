@@ -27,6 +27,7 @@ pub(crate) struct App {
     pub editing_buffer: String,
 
     pub active_task: Option<u8>,
+    pub decimal_time_format: bool,
 }
 
 impl App {
@@ -57,6 +58,7 @@ impl App {
             editing_slot: None,
             editing_buffer: String::new(),
             active_task,
+            decimal_time_format: false,
         }
     }
 
@@ -82,6 +84,7 @@ impl App {
             KeyCode::Char('s') => self.handle_stop(),
             KeyCode::F(1) => self.toggle_task_editor(),
             KeyCode::F(2) => self.toggle_smartcard(),
+            KeyCode::F(12) => self.toggle_time_format(),
             KeyCode::Char(ch) if ch.is_ascii_digit() => {
                 let slot = ch as u8 - b'0';
                 self.toggle_task(slot);
@@ -246,6 +249,15 @@ impl App {
             ReaderProbe::Unavailable => {
                 self.feedback = "Cannot activate: PC/SC subsystem unavailable.".into();
             }
+        }
+    }
+
+    fn toggle_time_format(&mut self) {
+        self.decimal_time_format = !self.decimal_time_format;
+        if self.decimal_time_format {
+            self.feedback = "Time format: Decimal hours".into();
+        } else {
+            self.feedback = "Time format: Hours and minutes".into();
         }
     }
 

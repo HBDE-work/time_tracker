@@ -28,6 +28,9 @@ pub(crate) enum Commands {
         week: Option<u32>,
         /// Year (defaults to current year)
         year: Option<i32>,
+        /// Display time in decimal hours format
+        #[arg(short, long)]
+        decimal: bool,
     },
     /// Launch interactive terminal UI
     Tui,

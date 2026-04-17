@@ -19,7 +19,12 @@ fn main() {
         Some(Commands::Go { task }) => commands::cmd_go(task),
         Some(Commands::Pause) => commands::cmd_pause(),
         Some(Commands::Stop) => commands::cmd_stop(),
-        Some(Commands::Status { day, week, year }) => commands::cmd_status(day, week, year),
+        Some(Commands::Status {
+            day,
+            week,
+            year,
+            decimal,
+        }) => commands::cmd_status(day, week, year, decimal),
         Some(Commands::Tui) => run_tui_here(),
         None => {
             if io::IsTerminal::is_terminal(&io::stdin()) {

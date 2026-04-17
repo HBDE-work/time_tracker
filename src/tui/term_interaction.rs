@@ -57,6 +57,7 @@ pub(crate) fn run_tui() -> io::Result<()> {
                 app.config.smartcard_active(),
                 app.reader_status,
                 app.task_editor_open,
+                app.decimal_time_format,
             );
             surface.render_widget(
                 ratatui::widgets::Paragraph::new(toggles)
@@ -79,7 +80,7 @@ pub(crate) fn run_tui() -> io::Result<()> {
                 );
                 surface.render_widget(editor_widget, regions[2]);
             } else {
-                let status_content = render_status_panel();
+                let status_content = render_status_panel(app.decimal_time_format);
                 let status_widget = ratatui::widgets::Paragraph::new(status_content).block(
                     ratatui::widgets::Block::bordered()
                         .title("  Status  ")

@@ -8,10 +8,11 @@ use crate::tracking_logic::calculate_total_paused;
 use crate::tracking_logic::calculate_total_time;
 use crate::tracking_logic::calculate_worked;
 use crate::tracking_logic::format_duration;
+use crate::tracking_logic::format_duration_decimal;
 use crate::tracking_logic::format_task_summary;
 use crate::tracking_logic::resolve_date;
 
-pub(crate) fn cmd_status(day: Option<String>, week: Option<u32>, year: Option<i32>) {
+pub(crate) fn cmd_status(day: Option<String>, week: Option<u32>, year: Option<i32>, decimal: bool) {
     let date = resolve_date(day, week, year);
 
     match load_record(date) {
@@ -25,6 +26,12 @@ pub(crate) fn cmd_status(day: Option<String>, week: Option<u32>, year: Option<i3
             let total_time = calculate_total_time(&record, still_running);
             let total_paused = calculate_total_paused(&record, still_running);
             let total_worked = calculate_worked(&record, still_running);
+
+            let format_fn = if decimal {
+                format_duration_decimal
+            } else {
+                format_duration
+            };
 
             let rule = CLI.horizontal_rule;
             println!("{rule} {} {rule}", date.format("%A, %Y-%m-%d"));
@@ -54,9 +61,9 @@ pub(crate) fn cmd_status(day: Option<String>, week: Option<u32>, year: Option<i3
                 let session_worked = session_total - session_paused;
 
                 println!("  ─────────────────────");
-                println!("    Total:  {}", format_duration(session_total));
-                println!("    Paused: {}", format_duration(session_paused));
-                println!("    Worked: {}", format_duration(session_worked));
+                println!("    Total:  {}", format_fn(session_total));
+                println!("    Paused: {}", format_fn(session_paused));
+                println!("    Worked: {}", format_fn(session_worked));
             }
 
             let pause_indicator = if is_today && record.is_paused() {
@@ -70,13 +77,13 @@ pub(crate) fn cmd_status(day: Option<String>, week: Option<u32>, year: Option<i3
             println!("\n  ═════════════════════");
             println!(
                 "  Total Time:   {}{}",
-                format_duration(total_time),
+                format_fn(total_time),
                 pause_indicator
             );
-            println!("  Total Paused: {}", format_duration(total_paused));
-            println!("  Total Worked: {}", format_duration(total_worked));
+            println!("  Total Paused: {}", format_fn(total_paused));
+            println!("  Total Worked: {}", format_fn(total_worked));
 
-            let task_summary = format_task_summary(&record, total_worked);
+            let task_summary = format_task_summary(&record, total_worked, decimal);
             if !task_summary.is_empty() {
                 print!("{task_summary}");
             }

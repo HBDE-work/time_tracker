@@ -5,6 +5,7 @@ use crate::data::{DayRecord, TaskEvent};
 use crate::storage::save_record;
 
 use super::format_duration;
+use super::format_duration_decimal;
 use super::today_record;
 
 pub(crate) fn start_task(task_name: &str) -> String {
@@ -85,11 +86,21 @@ pub(crate) fn calculate_task_durations(record: &DayRecord) -> Vec<(String, Durat
     totals
 }
 
-pub(crate) fn format_task_summary(record: &DayRecord, total_worked: Duration) -> String {
+pub(crate) fn format_task_summary(
+    record: &DayRecord,
+    total_worked: Duration,
+    decimal_format: bool,
+) -> String {
     let durations = calculate_task_durations(record);
     if durations.is_empty() {
         return String::new();
     }
+
+    let format_fn = if decimal_format {
+        format_duration_decimal
+    } else {
+        format_duration
+    };
 
     let current = active_task_name(record);
     let mut summary = String::from("\n  Tasks:\n");
@@ -101,19 +112,13 @@ pub(crate) fn format_task_summary(record: &DayRecord, total_worked: Duration) ->
         } else {
             String::new()
         };
-        summary.push_str(&format!(
-            "    {marker}{name}: {}\n",
-            format_duration(*duration)
-        ));
+        summary.push_str(&format!("    {marker}{name}: {}\n", format_fn(*duration)));
     }
 
     let task_total: Duration = durations.iter().map(|(_, d)| *d).sum();
     let unassigned = total_worked - task_total;
     if unassigned.num_seconds() > 0 {
-        summary.push_str(&format!(
-            "\n    Unassigned: {}\n",
-            format_duration(unassigned),
-        ));
+        summary.push_str(&format!("\n    Unassigned: {}\n", format_fn(unassigned),));
     }
 
     summary

@@ -14,9 +14,10 @@ use crate::tracking_logic::calculate_total_paused;
 use crate::tracking_logic::calculate_total_time;
 use crate::tracking_logic::calculate_worked;
 use crate::tracking_logic::format_duration;
+use crate::tracking_logic::format_duration_decimal;
 use crate::tracking_logic::today_record;
 
-pub(crate) fn render_status_panel() -> Vec<Line<'static>> {
+pub(crate) fn render_status_panel(decimal_format: bool) -> Vec<Line<'static>> {
     let record = today_record();
     let actively_running = record.has_active_session();
 
@@ -56,26 +57,29 @@ pub(crate) fn render_status_panel() -> Vec<Line<'static>> {
     content.push(Line::from(headline_spans));
 
     // Display detailed time breakdown
+    let format_fn = if decimal_format {
+        format_duration_decimal
+    } else {
+        format_duration
+    };
+
     content.push(Line::from(vec![
         Span::styled("  Total: ", Style::new().add_modifier(Modifier::BOLD)),
         Span::styled(
-            format_duration(total_time),
+            format_fn(total_time),
             Style::new().fg(Color::White).add_modifier(Modifier::BOLD),
         ),
         Span::styled("  |  Paused: ", Style::new().add_modifier(Modifier::BOLD)),
-        Span::styled(
-            format_duration(total_paused),
-            Style::new().fg(Color::Yellow),
-        ),
+        Span::styled(format_fn(total_paused), Style::new().fg(Color::Yellow)),
         Span::styled("  |  Worked: ", Style::new().add_modifier(Modifier::BOLD)),
         Span::styled(
-            format_duration(total_worked),
+            format_fn(total_worked),
             Style::new().fg(Color::Green).add_modifier(Modifier::BOLD),
         ),
     ]));
 
     content.push(Line::raw(""));
-    render_task_durations(&record, total_worked, &mut content);
+    render_task_durations(&record, total_worked, decimal_format, &mut content);
 
     content.push(Line::raw(""));
     content.push(Line::from(Span::styled(
@@ -85,7 +89,7 @@ pub(crate) fn render_status_panel() -> Vec<Line<'static>> {
 
     content.push(Line::raw(""));
 
-    render_session_events(&record, actively_running, &mut content);
+    render_session_events(&record, actively_running, decimal_format, &mut content);
 
     content
 }
@@ -93,12 +97,19 @@ pub(crate) fn render_status_panel() -> Vec<Line<'static>> {
 pub(crate) fn render_task_durations(
     record: &DayRecord,
     worked: chrono::Duration,
+    decimal_format: bool,
     content: &mut Vec<Line<'static>>,
 ) {
     let task_durations = calculate_task_durations(record);
     if task_durations.is_empty() {
         return;
     }
+
+    let format_fn = if decimal_format {
+        format_duration_decimal
+    } else {
+        format_duration
+    };
 
     let active_name = crate::tracking_logic::active_task_name(record);
     for (name, duration) in &task_durations {
@@ -114,7 +125,7 @@ pub(crate) fn render_task_durations(
             String::new()
         };
         content.push(Line::from(Span::styled(
-            format!("  {marker}{name}: {}", format_duration(*duration)),
+            format!("  {marker}{name}: {}", format_fn(*duration)),
             style,
         )));
     }
@@ -123,7 +134,7 @@ pub(crate) fn render_task_durations(
     let unassigned = worked - task_total;
     if unassigned.num_seconds() > 0 {
         content.push(Line::from(Span::styled(
-            format!("  Unassigned: {}", format_duration(unassigned)),
+            format!("  Unassigned: {}", format_fn(unassigned)),
             Style::new().fg(Color::DarkGray),
         )));
     }
@@ -132,9 +143,16 @@ pub(crate) fn render_task_durations(
 pub(crate) fn render_session_events(
     record: &DayRecord,
     actively_running: bool,
+    decimal_format: bool,
     content: &mut Vec<Line<'static>>,
 ) {
     let session_count = record.sessions.len();
+
+    let format_fn = if decimal_format {
+        format_duration_decimal
+    } else {
+        format_duration
+    };
 
     for (idx, session) in record.sessions.iter().enumerate().rev() {
         let is_last = idx + 1 == session_count;
@@ -175,21 +193,13 @@ pub(crate) fn render_session_events(
         content.push(Line::from(vec![
             Span::styled("    ", Style::new()),
             Span::styled("Total: ", Style::new().fg(Color::White)),
-            Span::styled(
-                format_duration(session_total),
-                Style::new().fg(Color::White),
-            ),
+            Span::styled(format_fn(session_total), Style::new().fg(Color::White)),
             Span::styled("  |  Paused: ", Style::new().fg(Color::White)),
-            Span::styled(
-                format_duration(session_paused),
-                Style::new().fg(Color::Yellow),
-            ),
+            Span::styled(format_fn(session_paused), Style::new().fg(Color::Yellow)),
             Span::styled("  |  Worked: ", Style::new().fg(Color::White)),
-            Span::styled(
-                format_duration(session_worked),
-                Style::new().fg(Color::Green),
-            ),
+            Span::styled(format_fn(session_worked), Style::new().fg(Color::Green)),
         ]));
+
         content.push(Line::raw(""));
     }
 }
