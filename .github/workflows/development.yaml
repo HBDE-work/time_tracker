@@ -36,6 +36,7 @@ jobs:
 
             - name: Set artifact name base
               id: vars
+              shell: bash
               run: |
                   BRANCH="${GITHUB_REF_NAME//\//-}"
                   if [ -n "${{ github.event.pull_request.number }}" ]; then
