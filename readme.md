@@ -26,7 +26,7 @@ This installs the binary as `tracker` in your Cargo bin directory
 - Just run `tracker` without any subcommand and the TUI launches
 - Press `q` or `Esc` to quit
 
-![TUI Mode](https://github.com/HBDE-work/time_tracker/blob/master/docs/images/tui_mode.png?raw=true)
+![TUI Mode](https://github.com/HBDE-work/time_tracker/blob/HEAD/docs/images/tui_mode.png?raw=true)
 
 ---
 
