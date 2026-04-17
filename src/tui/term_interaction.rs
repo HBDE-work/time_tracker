@@ -69,8 +69,12 @@ pub(crate) fn run_tui() -> io::Result<()> {
             surface.render_widget(ratatui::widgets::Paragraph::new(feedback_line), regions[1]);
 
             if app.task_editor_open {
-                let editor_content =
-                    render_task_editor_panel(&app.config, app.editing_slot, &app.editing_buffer);
+                let editor_content = render_task_editor_panel(
+                    &app.config,
+                    app.editing_slot,
+                    &app.editing_buffer,
+                    app.editing_max_hours,
+                );
                 let editor_widget = ratatui::widgets::Paragraph::new(editor_content).block(
                     ratatui::widgets::Block::bordered()
                         .title("  Task Editor [F1]  ")

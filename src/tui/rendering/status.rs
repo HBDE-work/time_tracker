@@ -63,7 +63,8 @@ pub(crate) fn render_status_panel(decimal_format: bool) -> Vec<Line<'static>> {
         format_duration
     };
 
-    content.push(Line::from(vec![
+    // Build time summary line with optional remaining time
+    let mut time_summary_spans = vec![
         Span::styled("  Total: ", Style::new().add_modifier(Modifier::BOLD)),
         Span::styled(
             format_fn(total_time),
@@ -76,7 +77,35 @@ pub(crate) fn render_status_panel(decimal_format: bool) -> Vec<Line<'static>> {
             format_fn(total_worked),
             Style::new().fg(Color::Green).add_modifier(Modifier::BOLD),
         ),
-    ]));
+    ];
+
+    // Add remaining time if max hours is configured
+    let config = crate::storage::TrackerConfig::load();
+    if let Some(max_hours) = config.max_hours_per_day() {
+        let max_duration = chrono::Duration::seconds((max_hours * 3600.0) as i64);
+        let remaining = max_duration - total_worked;
+
+        let (remaining_text, remaining_color) = if remaining.num_seconds() <= 0 {
+            ("EXCEEDED".to_string(), Color::Red)
+        } else if remaining.num_minutes() <= 30 {
+            (format_fn(remaining), Color::Yellow)
+        } else {
+            (format_fn(remaining), Color::Green)
+        };
+
+        time_summary_spans.push(Span::styled(
+            "  |  Remaining: ",
+            Style::new().add_modifier(Modifier::BOLD),
+        ));
+        time_summary_spans.push(Span::styled(
+            remaining_text,
+            Style::new()
+                .fg(remaining_color)
+                .add_modifier(Modifier::BOLD),
+        ));
+    }
+
+    content.push(Line::from(time_summary_spans));
 
     content.push(Line::raw(""));
     render_task_durations(&record, total_worked, decimal_format, &mut content);
@@ -111,6 +140,8 @@ pub(crate) fn render_task_durations(
         format_duration
     };
 
+    let config = crate::storage::TrackerConfig::load();
+
     let active_name = crate::tracking_logic::active_task_name(record);
     for (name, duration) in &task_durations {
         let is_running = active_name == Some(name.as_str());
@@ -120,14 +151,32 @@ pub(crate) fn render_task_durations(
             Style::new().fg(Color::White)
         };
         let marker = if is_running {
-            format!(" {} ", TUI.task_playing)
+            format!("{} ", TUI.task_playing)
         } else {
             String::new()
         };
-        content.push(Line::from(Span::styled(
-            format!("  {marker}{name}: {}", format_fn(*duration)),
-            style,
-        )));
+
+        let mut task_line = format!("  {marker}{name}: {}", format_fn(*duration));
+
+        // Find task-specific max_hours by searching through configured task slots
+        let task_max_hours = (0u8..=9)
+            .filter_map(|slot| config.task_info(slot))
+            .find(|info| info.name == *name)
+            .and_then(|info| info.max_hours);
+
+        // Add remaining time for this task if max hours is configured
+        if let Some(max_hours) = task_max_hours {
+            let max_duration = chrono::Duration::seconds((max_hours * 3600.0) as i64);
+            let remaining = max_duration - *duration;
+
+            if remaining.num_seconds() <= 0 {
+                task_line.push_str(" (EXCEEDED)");
+            } else {
+                task_line.push_str(&format!(" (Remaining: {})", format_fn(remaining)));
+            }
+        }
+
+        content.push(Line::from(Span::styled(task_line, style)));
     }
 
     let task_total: chrono::Duration = task_durations.iter().map(|(_, d)| *d).sum();

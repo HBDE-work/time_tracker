@@ -25,6 +25,7 @@ pub(crate) struct App {
     pub task_editor_open: bool,
     pub editing_slot: Option<u8>,
     pub editing_buffer: String,
+    pub editing_max_hours: bool,
 
     pub active_task: Option<u8>,
     pub decimal_time_format: bool,
@@ -57,13 +58,14 @@ impl App {
             task_editor_open: false,
             editing_slot: None,
             editing_buffer: String::new(),
+            editing_max_hours: false,
             active_task,
             decimal_time_format: false,
         }
     }
 
     pub(crate) fn handle_key(&mut self, code: KeyCode) {
-        if self.editing_slot.is_some() {
+        if self.editing_slot.is_some() || self.editing_max_hours {
             self.handle_key_editing(code);
             return;
         }
@@ -96,12 +98,32 @@ impl App {
     fn handle_key_editor_browse(&mut self, code: KeyCode) {
         match code {
             KeyCode::F(1) | KeyCode::Esc => self.toggle_task_editor(),
+            KeyCode::Char('h') | KeyCode::Char('H') => {
+                self.editing_buffer = self
+                    .config
+                    .max_hours_per_day()
+                    .map(|h| format!("{:.2}", h))
+                    .unwrap_or_default();
+                self.editing_max_hours = true;
+                self.feedback =
+                    "Editing max hours/day - type hours (e.g. 8.5), Enter to save, Esc to cancel"
+                        .into();
+            }
             KeyCode::Char(ch) if ch.is_ascii_digit() => {
                 let slot = ch as u8 - b'0';
-                self.editing_buffer = self.config.task_name(slot).unwrap_or("").to_owned();
+                // Build editing buffer with task name and optional max hours
+                if let Some(task_info) = self.config.task_info(slot) {
+                    self.editing_buffer = task_info.name.clone();
+                    if let Some(max_hours) = task_info.max_hours {
+                        self.editing_buffer.push_str(&format!(":{:.2}", max_hours));
+                    }
+                } else {
+                    self.editing_buffer.clear();
+                }
                 self.editing_slot = Some(slot);
-                self.feedback =
-                    format!("Editing slot {slot} - type a name, Enter to save, Esc to cancel");
+                self.feedback = format!(
+                    "Editing slot {slot} - format: TaskName or TaskName:2.5 - Enter to save, Esc to cancel"
+                );
             }
             _ => {}
         }
@@ -110,30 +132,64 @@ impl App {
     fn handle_key_editing(&mut self, code: KeyCode) {
         match code {
             KeyCode::Enter => {
-                let slot = self.editing_slot.take().unwrap();
-                let name = self.editing_buffer.trim().to_owned();
-                self.config.set_task_name(slot, &name);
-                self.save_config();
-                if name.is_empty() {
-                    self.feedback = format!("Slot {slot} cleared.");
-                    if self.active_task == Some(slot) {
-                        self.active_task = None;
+                if self.editing_max_hours {
+                    // Save max hours
+                    let trimmed = self.editing_buffer.trim();
+                    if trimmed.is_empty() {
+                        self.config.set_max_hours_per_day(None);
+                        self.feedback = "Max hours/day cleared.".into();
+                    } else {
+                        match trimmed.parse::<f64>() {
+                            Ok(hours) if hours > 0.0 && hours <= 24.0 => {
+                                self.config.set_max_hours_per_day(Some(hours));
+                                self.feedback = format!("Max hours/day set to {:.2}h", hours);
+                            }
+                            _ => {
+                                self.feedback =
+                                    "Invalid hours. Enter a number between 0 and 24.".into();
+                            }
+                        }
                     }
-                } else {
-                    self.feedback = format!("Slot {slot} -> \"{name}\" saved.");
+                    self.editing_max_hours = false;
+                    self.editing_buffer.clear();
+                    self.save_config();
+                } else if let Some(slot) = self.editing_slot.take() {
+                    // Save task slot
+                    let name = self.editing_buffer.trim().to_owned();
+                    self.config.set_task_name(slot, &name);
+                    self.save_config();
+                    if name.is_empty() {
+                        self.feedback = format!("Slot {slot} cleared.");
+                        if self.active_task == Some(slot) {
+                            self.active_task = None;
+                        }
+                    } else {
+                        self.feedback = format!("Slot {slot} -> \"{name}\" saved.");
+                    }
+                    self.editing_buffer.clear();
                 }
-                self.editing_buffer.clear();
             }
             KeyCode::Esc => {
-                let slot = self.editing_slot.take().unwrap();
+                if self.editing_max_hours {
+                    self.editing_max_hours = false;
+                    self.feedback = "Editing max hours cancelled.".into();
+                } else if let Some(slot) = self.editing_slot.take() {
+                    self.feedback = format!("Editing slot {slot} cancelled.");
+                }
                 self.editing_buffer.clear();
-                self.feedback = format!("Editing slot {slot} cancelled.");
             }
             KeyCode::Backspace => {
                 self.editing_buffer.pop();
             }
             KeyCode::Char(ch) => {
-                self.editing_buffer.push(ch);
+                // For max hours, only allow digits, decimal point
+                if self.editing_max_hours {
+                    if ch.is_ascii_digit() || ch == '.' {
+                        self.editing_buffer.push(ch);
+                    }
+                } else {
+                    self.editing_buffer.push(ch);
+                }
             }
             _ => {}
         }
@@ -206,13 +262,15 @@ impl App {
     fn toggle_task_editor(&mut self) {
         if self.task_editor_open {
             self.editing_slot = None;
+            self.editing_max_hours = false;
             self.editing_buffer.clear();
         }
         self.task_editor_open = !self.task_editor_open;
         self.save_config();
 
         if self.task_editor_open {
-            self.feedback = "Task Editor opened. Press 0 - 9 to edit a slot.".into();
+            self.feedback =
+                "Task Editor opened. Press 0 - 9 to edit a slot, H for max hours.".into();
         } else {
             self.feedback = "Task Editor closed.".into();
         }

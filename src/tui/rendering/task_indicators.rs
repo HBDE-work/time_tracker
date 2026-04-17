@@ -48,7 +48,7 @@ pub(crate) fn render_task_indicators(
                     Style::new().fg(Color::Green).add_modifier(Modifier::BOLD),
                 ));
                 let play = TUI.task_playing;
-                let padded_name = format!("{play}{truncated:<pad$}", pad = max_name);
+                let padded_name = format!("{play} {truncated:<pad$}", pad = max_name);
                 timespans.push(Span::styled(padded_name, style));
             } else {
                 timespans.push(Span::styled(
