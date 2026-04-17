@@ -18,7 +18,7 @@ runs:
           shell: bash
           run: |
               apt update
-              apt install -y curl build-essential pkg-config libssl-dev git zip
+              apt install -y curl build-essential pkg-config libssl-dev git zip vim
               if [ "${{ inputs.install-mingw }}" = "true" ]; then
                 apt install -y gcc-mingw-w64
               fi
