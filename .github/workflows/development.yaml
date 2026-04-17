@@ -1,0 +1,55 @@
+name: PR Build & Test
+
+on:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+      - add-task-switcher
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    container:
+      image: ubuntu:20.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust environment
+        uses: ./.github/actions/setup-rust-env
+        with:
+          cache-key-suffix: '-dev'
+          install-mingw: 'true'
+
+      - name: Run lint checks
+        run: cargo make lint
+
+      - name: Run tests
+        run: cargo make test
+
+      - name: Build and package
+        run: cargo make package
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-pr-${{ github.event.pull_request.number || github.ref_name }}--${{ github.sha }}
+          path: |
+            dist/*linux*.zip
+          if-no-files-found: warn
+          path: dist/*linux*.zip
+          retention-days: 7
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-pr-${{ github.event.pull_request.number || github.ref_name }}--${{ github.sha }}
+          path: |
+            dist/*windows*.zip
+          if-no-files-found: warn
+          retention-days: 7

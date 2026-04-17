@@ -1,0 +1,51 @@
+name: 'Setup Rust Environment'
+description: 'Install Rust, cargo-make, and setup cross-compilation targets with caching'
+
+inputs:
+  cache-key-suffix:
+    description: 'Additional suffix for cache keys'
+    required: false
+    default: ''
+  install-mingw:
+    description: 'Whether to install MinGW for Windows cross-compilation'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install system dependencies
+      shell: bash
+      run: |
+        apt update
+        apt install -y curl build-essential pkg-config libssl-dev git zip
+        if [ "${{ inputs.install-mingw }}" = "true" ]; then
+          apt install -y gcc-mingw-w64
+        fi
+      env:
+        DEBIAN_FRONTEND: noninteractive
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+
+    - name: Setup Rust cache
+      uses: Swatinem/rust-cache@v2
+      with:
+        prefix-key: ${{ runner.os }}${{ inputs.cache-key-suffix }}
+        cache-on-failure: true
+        workspaces: |
+          .
+
+    - name: Install cargo-make (if missing)
+      shell: bash
+      run: |
+        if ! command -v cargo-make >/dev/null 2>&1; then
+          cargo install cargo-make --locked
+        fi
+
+    - name: Setup cross-compilation targets
+      shell: bash
+      run: |
+        cargo make setup

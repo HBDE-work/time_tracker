@@ -15,6 +15,15 @@ skip_crate_env_info = true
 CARGO_VERSION = { script = ["cargo pkgid | cut -d '@' -f2"] }
 
 
+# Linting and testing tasks
+[tasks.lint]
+command = "cargo"
+args = ["clippy", "--", "-D", "warnings"]
+
+[tasks.test]
+command = "cargo"
+args = ["test"]
+
 # Cross-compilation task for building on Linux
 [tasks.build-linux]
 command = "cargo"
@@ -44,25 +53,41 @@ dependencies = ["build-linux-debug", "build-windows-debug"]
 [tasks.deploy-linux]
 dependencies = ["build-linux"]
 script = [
-    "mkdir -p dist",
-    "cp target/x86_64-unknown-linux-gnu/release/tracker dist/tracker-${CARGO_VERSION}.bin",
+    "mkdir -p dist/linux",
+    "cp target/x86_64-unknown-linux-gnu/release/tracker dist/linux/tracker.bin",
 ]
 
 [tasks.deploy-windows]
 dependencies = ["build-windows"]
 script = [
-    "mkdir -p dist",
-    "cp target/x86_64-pc-windows-gnu/release/tracker.exe dist/tracker-${CARGO_VERSION}.exe",
+    "mkdir -p dist/windows",
+    "cp target/x86_64-pc-windows-gnu/release/tracker.exe dist/windows/tracker.exe",
 ]
 
 [tasks.deploy]
 dependencies = ["build-all", "deploy-linux", "deploy-windows"]
 
-[tasks.package]
-dependencies = ["deploy"]
+# Package Linux binary into platform-specific zip
+[tasks.package-linux]
+dependencies = ["deploy-linux"]
 script = [
-    "zip -r dist/time-tracker-cli-${CARGO_VERSION}.zip dist/",
+    "mkdir -p dist/linux",
+    "cd dist/linux && zip -r ../time-tracker-cli-${CARGO_VERSION}-x86_64-linux.zip tracker.bin",
+    "rm -rf ../linux",
 ]
+
+# Package Windows binary into platform-specific zip
+[tasks.package-windows]
+dependencies = ["deploy-windows"]
+script = [
+    "mkdir -p dist/windows",
+    "cd dist/windows && zip -r ../time-tracker-cli-${CARGO_VERSION}-x86_64-windows.zip tracker.exe",
+    "rm -rf ../windows",
+]
+
+# Package all platforms
+[tasks.package]
+dependencies = ["package-linux", "package-windows"]
 
 [tasks.cleanup]
 script = [
