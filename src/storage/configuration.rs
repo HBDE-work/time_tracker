@@ -72,6 +72,10 @@ pub(crate) struct TrackerConfig {
     /// Maximum work hours per day (optional)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) max_hours_per_day: Option<f64>,
+
+    /// Display time in decimal format
+    #[serde(default)]
+    pub(crate) decimal_time_format: bool,
 }
 
 impl TrackerConfig {
@@ -125,6 +129,16 @@ impl TrackerConfig {
         self.max_hours_per_day = hours;
     }
 
+    /// Get the decimal time format preference
+    pub(crate) fn decimal_time_format(&self) -> bool {
+        self.decimal_time_format
+    }
+
+    /// Set the decimal time format preference
+    pub(crate) fn set_decimal_time_format(&mut self, enabled: bool) {
+        self.decimal_time_format = enabled;
+    }
+
     /// Load config from disk and fall back to defaults when missing or invalid
     pub(crate) fn load() -> Self {
         let raw = match fs::read_to_string(config_path()) {
@@ -145,6 +159,7 @@ impl TrackerConfig {
                 },
                 tasks: BTreeMap::new(),
                 max_hours_per_day: None,
+                decimal_time_format: false,
             };
             let _ = migrated.save();
             return migrated;

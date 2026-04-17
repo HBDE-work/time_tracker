@@ -50,7 +50,6 @@ impl App {
         let active_task = Self::recover_active_task(&config);
 
         Self {
-            config,
             feedback: String::from("Press a key to execute a command."),
             should_quit: false,
             reader_status,
@@ -60,7 +59,8 @@ impl App {
             editing_buffer: String::new(),
             editing_max_hours: false,
             active_task,
-            decimal_time_format: false,
+            decimal_time_format: config.decimal_time_format(),
+            config,
         }
     }
 
@@ -312,11 +312,14 @@ impl App {
 
     fn toggle_time_format(&mut self) {
         self.decimal_time_format = !self.decimal_time_format;
+        self.config
+            .set_decimal_time_format(self.decimal_time_format);
         if self.decimal_time_format {
             self.feedback = "Time format: Decimal hours".into();
         } else {
             self.feedback = "Time format: Hours and minutes".into();
         }
+        self.save_config();
     }
 
     fn save_config(&mut self) {
