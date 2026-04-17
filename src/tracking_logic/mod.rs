@@ -13,4 +13,8 @@ pub(crate) use task_actions::calculate_task_durations;
 pub(crate) use task_actions::format_task_summary;
 pub(crate) use task_actions::start_task;
 pub(crate) use task_actions::stop_active_task;
+pub(crate) use timer::calculate_session_paused;
+pub(crate) use timer::calculate_session_total;
+pub(crate) use timer::calculate_total_paused;
+pub(crate) use timer::calculate_total_time;
 pub(crate) use timer::calculate_worked;
