@@ -55,14 +55,23 @@ pub(crate) fn active_task_name(record: &DayRecord) -> Option<&str> {
 
 /// Aggregates per-task durations across all sessions
 ///
-/// Open timespans count up to now
+/// Open timespans count up to now for today, or end-of-day for past dates
 pub(crate) fn calculate_task_durations(record: &DayRecord) -> Vec<(String, Duration)> {
-    let now = Local::now().time();
+    let now = Local::now();
+    let is_today = record.date == now.date_naive();
+
+    // For today, use current time; for past days, use end-of-day
+    let default_end = if is_today {
+        now.time()
+    } else {
+        NaiveTime::from_hms_opt(23, 59, 59).unwrap()
+    };
+
     let mut totals: Vec<(String, Duration)> = Vec::new();
 
     for session in &record.sessions {
         for task_event in &session.task_events {
-            let stop = task_event.end.unwrap_or(now);
+            let stop = task_event.end.unwrap_or(default_end);
             let elapsed = stop - task_event.start;
 
             if let Some(entry) = totals.iter_mut().find(|(name, _)| name == &task_event.task) {

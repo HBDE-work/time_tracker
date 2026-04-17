@@ -37,9 +37,14 @@ fn calculate_session_worked(session: &Session, up_to_now: bool) -> Duration {
         }
     }
 
-    if up_to_now && let Some(start) = last_go {
-        let now = Local::now().time();
-        total += now - start;
+    // If there's still an open Go event without a matching Pause/Stop
+    if let Some(start) = last_go {
+        let end_time = if up_to_now {
+            Local::now().time()
+        } else {
+            NaiveTime::from_hms_opt(23, 59, 59).unwrap()
+        };
+        total += end_time - start;
     }
 
     total
