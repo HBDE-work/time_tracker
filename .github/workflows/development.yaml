@@ -36,10 +36,20 @@ jobs:
             - name: Build and package
               run: cargo make package
 
+            - name: Set artifact name base
+              id: vars
+              run: |
+                BRANCH="${GITHUB_REF_NAME//\//-}"
+                if [ -n "${{ github.event.pull_request.number }}" ]; then
+                  echo "NAME=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+                else
+                  echo "NAME=$BRANCH" >> $GITHUB_OUTPUT
+                fi
+
             - name: Upload Linux artifact
               uses: actions/upload-artifact@v4
               with:
-                  name: linux-pr-${{ github.event.pull_request.number || github.ref_name }}--${{ github.sha }}
+                  name: linux-pr-${{ steps.vars.outputs.NAME }}--${{ github.sha }}
                   path: |
                       dist/*linux*.zip
                   if-no-files-found: warn
@@ -48,7 +58,7 @@ jobs:
             - name: Upload Windows artifact
               uses: actions/upload-artifact@v4
               with:
-                  name: windows-pr-${{ github.event.pull_request.number || github.ref_name }}--${{ github.sha }}
+                  name: windows-pr-${{ steps.vars.outputs.NAME }}--${{ github.sha }}
                   path: |
                       dist/*windows*.zip
                   if-no-files-found: warn
