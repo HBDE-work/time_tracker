@@ -5,16 +5,18 @@ use std::process::Command;
 /// Detect available text editor on the system
 pub(crate) fn detect_editor() -> Option<String> {
     // Check environment variables
-    if let Ok(editor) = env::var("EDITOR") {
-        if !editor.is_empty() && command_exists(&editor) {
-            return Some(editor);
-        }
+    if let Ok(editor) = env::var("EDITOR")
+        && !editor.is_empty()
+        && command_exists(&editor)
+    {
+        return Some(editor);
     }
 
-    if let Ok(visual) = env::var("VISUAL") {
-        if !visual.is_empty() && command_exists(&visual) {
-            return Some(visual);
-        }
+    if let Ok(visual) = env::var("VISUAL")
+        && !visual.is_empty()
+        && command_exists(&visual)
+    {
+        return Some(visual);
     }
 
     // Platform-specific fallbacks

@@ -96,16 +96,14 @@ impl App {
             KeyCode::F(2) => self.toggle_smartcard(),
             KeyCode::F(3) => self.toggle_history_mode(),
             KeyCode::F(12) => self.toggle_time_format(),
-            KeyCode::Left => {
-                if self.history_mode {
-                    self.navigate_history(-1);
-                }
+            KeyCode::Left if self.history_mode => {
+                self.navigate_history(-1);
             }
-            KeyCode::Right => {
-                if self.history_mode {
-                    self.navigate_history(1);
-                }
+
+            KeyCode::Right if self.history_mode => {
+                self.navigate_history(1);
             }
+
             KeyCode::Char(ch) if ch.is_ascii_digit() => {
                 let slot = ch as u8 - b'0';
                 self.toggle_task(slot);
