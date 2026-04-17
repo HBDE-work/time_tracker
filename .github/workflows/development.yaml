@@ -1,14 +1,12 @@
-name: PR Build & Test
+name: Build & Test
 
 on:
     pull_request:
         branches: [master]
+
     push:
         branches:
             - master
-            - "feature/**"
-            - "bug/**"
-            - "hotfix/**"
 
 jobs:
     build-and-test:
@@ -39,12 +37,12 @@ jobs:
             - name: Set artifact name base
               id: vars
               run: |
-                BRANCH="${GITHUB_REF_NAME//\//-}"
-                if [ -n "${{ github.event.pull_request.number }}" ]; then
-                  echo "NAME=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
-                else
-                  echo "NAME=$BRANCH" >> $GITHUB_OUTPUT
-                fi
+                  BRANCH="${GITHUB_REF_NAME//\//-}"
+                  if [ -n "${{ github.event.pull_request.number }}" ]; then
+                    echo "NAME=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+                  else
+                    echo "NAME=$BRANCH" >> $GITHUB_OUTPUT
+                  fi
 
             - name: Upload Linux artifact
               uses: actions/upload-artifact@v4
