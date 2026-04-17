@@ -58,6 +58,7 @@ pub(crate) fn run_tui() -> io::Result<()> {
                 app.reader_status,
                 app.task_editor_open,
                 app.decimal_time_format,
+                app.history_mode,
             );
             surface.render_widget(
                 ratatui::widgets::Paragraph::new(toggles)
@@ -84,7 +85,12 @@ pub(crate) fn run_tui() -> io::Result<()> {
                 );
                 surface.render_widget(editor_widget, regions[2]);
             } else {
-                let status_content = render_status_panel(app.decimal_time_format);
+                let viewed_date = if app.history_mode {
+                    Some(app.get_viewed_date())
+                } else {
+                    None
+                };
+                let status_content = render_status_panel(app.decimal_time_format, viewed_date);
                 let status_widget = ratatui::widgets::Paragraph::new(status_content).block(
                     ratatui::widgets::Block::bordered()
                         .title("  Status  ")

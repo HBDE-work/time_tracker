@@ -1,4 +1,5 @@
 use chrono::Local;
+use chrono::NaiveDate;
 use ratatui::style::Color;
 use ratatui::style::Modifier;
 use ratatui::style::Style;
@@ -7,6 +8,7 @@ use ratatui::text::Span;
 
 use crate::data::DayRecord;
 use crate::data::glyphs::TUI;
+use crate::storage::load_record;
 use crate::tracking_logic::calculate_session_paused;
 use crate::tracking_logic::calculate_session_total;
 use crate::tracking_logic::calculate_task_durations;
@@ -15,11 +17,17 @@ use crate::tracking_logic::calculate_total_time;
 use crate::tracking_logic::calculate_worked;
 use crate::tracking_logic::format_duration;
 use crate::tracking_logic::format_duration_decimal;
-use crate::tracking_logic::today_record;
 
-pub(crate) fn render_status_panel(decimal_format: bool) -> Vec<Line<'static>> {
-    let record = today_record();
-    let actively_running = record.has_active_session();
+pub(crate) fn render_status_panel(
+    decimal_format: bool,
+    date: Option<NaiveDate>,
+) -> Vec<Line<'static>> {
+    let today = Local::now().date_naive();
+    let viewed_date = date.unwrap_or(today);
+    let is_today = viewed_date == today;
+
+    let record = load_record(viewed_date).unwrap_or_else(|| DayRecord::new(viewed_date));
+    let actively_running = is_today && record.has_active_session();
 
     let total_time = calculate_total_time(&record, actively_running);
     let total_paused = calculate_total_paused(&record, actively_running);

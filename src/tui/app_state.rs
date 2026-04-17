@@ -29,6 +29,9 @@ pub(crate) struct App {
 
     pub active_task: Option<u8>,
     pub decimal_time_format: bool,
+
+    pub history_mode: bool,
+    pub viewed_day_offset: i32,
 }
 
 impl App {
@@ -60,6 +63,8 @@ impl App {
             editing_max_hours: false,
             active_task,
             decimal_time_format: config.decimal_time_format(),
+            history_mode: false,
+            viewed_day_offset: 0,
             config,
         }
     }
@@ -86,7 +91,18 @@ impl App {
             KeyCode::Char('s') => self.handle_stop(),
             KeyCode::F(1) => self.toggle_task_editor(),
             KeyCode::F(2) => self.toggle_smartcard(),
+            KeyCode::F(3) => self.toggle_history_mode(),
             KeyCode::F(12) => self.toggle_time_format(),
+            KeyCode::Left => {
+                if self.history_mode {
+                    self.navigate_history(-1);
+                }
+            }
+            KeyCode::Right => {
+                if self.history_mode {
+                    self.navigate_history(1);
+                }
+            }
             KeyCode::Char(ch) if ch.is_ascii_digit() => {
                 let slot = ch as u8 - b'0';
                 self.toggle_task(slot);
@@ -320,6 +336,34 @@ impl App {
             self.feedback = "Time format: Hours and minutes".into();
         }
         self.save_config();
+    }
+
+    fn toggle_history_mode(&mut self) {
+        self.history_mode = !self.history_mode;
+        if self.history_mode {
+            self.feedback = "History mode: ON - Use ← → to navigate days".into();
+        } else {
+            self.viewed_day_offset = 0;
+            self.feedback = "History mode: OFF - Viewing today".into();
+        }
+    }
+
+    fn navigate_history(&mut self, direction: i32) {
+        self.viewed_day_offset += direction;
+
+        // Don't allow viewing future dates
+        if self.viewed_day_offset > 0 {
+            self.viewed_day_offset = 0;
+        }
+
+        let viewed_date = self.get_viewed_date();
+        self.feedback = format!("Viewing: {}", viewed_date.format("%A, %Y-%m-%d"));
+    }
+
+    pub(crate) fn get_viewed_date(&self) -> chrono::NaiveDate {
+        use chrono::Local;
+        let today = Local::now().date_naive();
+        today + chrono::Duration::days(self.viewed_day_offset as i64)
     }
 
     fn save_config(&mut self) {

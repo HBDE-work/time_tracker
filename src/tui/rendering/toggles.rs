@@ -4,6 +4,7 @@ use ratatui::style::Style;
 use ratatui::text::Line;
 use ratatui::text::Span;
 
+use crate::data::glyphs::TUI;
 use crate::tui::smartcard::ReaderProbe;
 
 /// Toggle indicators for the commands panel
@@ -12,6 +13,7 @@ pub(crate) fn render_toggles_column(
     reader_status: ReaderProbe,
     task_editor_open: bool,
     decimal_time_format: bool,
+    history_mode: bool,
 ) -> Vec<Line<'static>> {
     let mut content: Vec<Line<'static>> = Vec::new();
     content.push(Line::raw(""));
@@ -53,6 +55,24 @@ pub(crate) fn render_toggles_column(
         Span::styled(
             f2_state,
             Style::new().fg(f2_state_color).add_modifier(Modifier::BOLD),
+        ),
+    ]));
+
+    // F3 - History
+    let (f3_state, f3_color) = if history_mode {
+        ("ON ", Color::Green)
+    } else {
+        ("OFF", Color::DarkGray)
+    };
+    content.push(Line::from(vec![
+        Span::styled(
+            "[F3]",
+            Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(format!("  {}    ", TUI.book), Style::new().fg(Color::White)),
+        Span::styled(
+            f3_state,
+            Style::new().fg(f3_color).add_modifier(Modifier::BOLD),
         ),
     ]));
 
