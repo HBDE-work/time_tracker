@@ -12,18 +12,22 @@ jobs:
     check-commit:
         runs-on: ubuntu-latest
         outputs:
-            proceed: ${{ steps.check.outputs.proceed }}
+            proceed: ${{ steps.commitcheck.outputs.proceed }}
         steps:
-            - name: Checkout repo
+            - name: Checkout source
               uses: actions/checkout@v4
+              with:
+                  fetch-depth: 1
 
-            - name: Check commit message
-              id: check
+            - name: Check commit message / PR title
+              id: commitcheck
               run: |
-                  COMMIT_SHA=${GITHUB_SHA}
-                  MSG=$(git log -1 --pretty=%B $COMMIT_SHA)
+                  MSG=$(git log -1 --pretty=%B)
                   echo "Commit message: $MSG"
-                  if [[ "${MSG}" == *"[testbuild]"* ]] || [[ "${GITHUB_EVENT_PULL_REQUEST_TITLE:-}" == *"[testbuild]"* ]]; then
+
+                  PR_TITLE="${GITHUB_EVENT_PULL_REQUEST_TITLE:-}"
+
+                  if [[ "$MSG" == *"[testbuild]"* ]] || [[ "$PR_TITLE" == *"[testbuild]"* ]]; then
                     echo "proceed=true" >> $GITHUB_OUTPUT
                   else
                     echo "proceed=false" >> $GITHUB_OUTPUT
@@ -35,10 +39,11 @@ jobs:
         runs-on: ubuntu-latest
         container:
             image: rust:1.95
-
         steps:
-            - name: Checkout code
+            - name: Checkout source
               uses: actions/checkout@v4
+              with:
+                  fetch-depth: 1
 
             - name: Cache cargo registry
               uses: actions/cache@v3
@@ -75,17 +80,15 @@ jobs:
               run: |
                   BRANCH="${GITHUB_REF_NAME//\//-}"
                   if [ -n "${{ github.event.pull_request.number }}" ]; then
-                      echo "NAME=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+                    echo "NAME=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
                   else
-                      echo "NAME=$BRANCH" >> $GITHUB_OUTPUT
-                  fi
+                    echo "NAME=$BRANCH" >> $GITHUB_OUTPUT
 
             - name: Upload Linux artifact
               uses: actions/upload-artifact@v4
               with:
                   name: linux-pr-${{ steps.vars.outputs.NAME }}--${{ github.sha }}
-                  path: |
-                      dist/*linux*.zip
+                  path: dist/*linux*.zip
                   if-no-files-found: warn
                   retention-days: 7
 
@@ -93,7 +96,6 @@ jobs:
               uses: actions/upload-artifact@v4
               with:
                   name: windows-pr-${{ steps.vars.outputs.NAME }}--${{ github.sha }}
-                  path: |
-                      dist/*windows*.zip
+                  path: dist/*windows*.zip
                   if-no-files-found: warn
                   retention-days: 7
