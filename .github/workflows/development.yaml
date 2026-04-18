@@ -85,12 +85,16 @@ jobs:
             - name: Set artifact name base
               id: vars
               shell: bash
+              env:
+                  PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+                  GITHUB_REF_NAME: ${{ github.ref_name }}
               run: |
                   BRANCH="${GITHUB_REF_NAME//\//-}"
-                  if [ -n "${{ github.event.pull_request.number }}" ]; then
-                    echo "NAME=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+                  if [ -n "$PR_NUMBER" ]; then
+                    echo "NAME=pr-$PR_NUMBER" >> $GITHUB_OUTPUT
                   else
                     echo "NAME=$BRANCH" >> $GITHUB_OUTPUT
+                  fi
 
             - name: Upload Linux artifact
               uses: actions/upload-artifact@v4
