@@ -46,7 +46,7 @@ jobs:
         if: needs.check-commit.outputs.proceed == 'true'
         runs-on: ubuntu-latest
         container:
-            image: rust:1.95
+            image: ubuntu:20.04 # compatibility choice
         steps:
             - name: Checkout source
               uses: actions/checkout@v4
