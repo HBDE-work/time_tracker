@@ -10,9 +10,6 @@ on:
 
 jobs:
     build-and-test:
-        if: |
-            (github.event_name == 'push' && contains(github.event.head_commit.message, '[testbuild]')) ||
-            (github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[testbuild]'))
         runs-on: ubuntu-latest
         container:
             image: rust:1.95
@@ -20,6 +17,16 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
+
+            - name: Check commit message
+              id: commitcheck
+              run: |
+                  MSG=$(git log -1 --pretty=%B)
+                  echo "Commit message: $MSG"
+                  if [[ "$MSG" != *"[testbuild]"* ]]; then
+                      echo "No [testbuild] tag found. Skipping job."
+                      exit 78
+                  fi
 
             - name: Cache cargo registry
               uses: actions/cache@v3
@@ -56,9 +63,9 @@ jobs:
               run: |
                   BRANCH="${GITHUB_REF_NAME//\//-}"
                   if [ -n "${{ github.event.pull_request.number }}" ]; then
-                    echo "NAME=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+                      echo "NAME=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
                   else
-                    echo "NAME=$BRANCH" >> $GITHUB_OUTPUT
+                      echo "NAME=$BRANCH" >> $GITHUB_OUTPUT
                   fi
 
             - name: Upload Linux artifact
