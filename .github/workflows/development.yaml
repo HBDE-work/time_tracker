@@ -20,9 +20,10 @@ jobs:
             - name: Check commit message
               id: check
               run: |
-                  MSG=$(git log -1 --pretty=%B)
+                  COMMIT_SHA=${GITHUB_SHA}
+                  MSG=$(git log -1 --pretty=%B $COMMIT_SHA)
                   echo "Commit message: $MSG"
-                  if [[ "$MSG" == *"[testbuild]"* ]]; then
+                  if [[ "${MSG}" == *"[testbuild]"* ]] || [[ "${GITHUB_EVENT_PULL_REQUEST_TITLE:-}" == *"[testbuild]"* ]]; then
                     echo "proceed=true" >> $GITHUB_OUTPUT
                   else
                     echo "proceed=false" >> $GITHUB_OUTPUT
@@ -51,7 +52,7 @@ jobs:
               uses: actions/cache@v3
               with:
                   path: target
-                  key: cargo-target-${{ github.sha }}
+                  key: cargo-target-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
 
             - name: Setup Rust environment
               uses: ./.github/actions/setup-rust-env
