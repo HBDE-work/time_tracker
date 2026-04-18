@@ -17,7 +17,9 @@ jobs:
             - name: Checkout source
               uses: actions/checkout@v4
               with:
-                  fetch-depth: 0
+                  ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+                  fetch-depth: 1
+
             - name: Base run decision on last commit message
               id: commitcheck
               run: |
