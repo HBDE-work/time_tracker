@@ -1,5 +1,5 @@
 
-# Tracker - Track Worktime Today
+# Tracker - Track your Worktime Today
 
 - I was so annoyed by the time tracking tool of my company that I built my own
 - `tracker` is capable to track time within multiple sequential sessions with pauses per day
