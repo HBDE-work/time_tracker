@@ -2,12 +2,17 @@
 # Tracker - Track Worktime Today
 
 - I was so annoyed by the time tracking tool of my company that I built my own
-- tracker is capable to track time within multiple sequential sessions with pauses per day
+- `tracker` is capable to track time within multiple sequential sessions with pauses per day
     - time per session can be sliced further into tasks (optionally assigned to number `0 - 9`)
 - optionally autotrack via (un-) plugging a Smartcard
+- Past Day Record Status can be retrieved
+- Day Records can be edited either directly in the files or via the TUI
 - Data is stored as TOMLs per day under `~/.config/time_tracking/` (Linux) or `%APPDATA%/time_tracking/` (Windows)
 - Run `tracker go` when you start, `tracker pause` for breaks, `tracker stop` when you're done
-- Check your hours with `tracker status` or look up past days like `tracker status monday 23`
+- Check Status of your hours
+    -  `tracker status` shows the current day
+    - `tracker status <dayname> <calendarweek> <year>` looks up past days where the arguments are optional and if omitted default to `current`
+        - example: `tracker status monday 23` shows the status of monday of calendarweek 23 of the current year
 
 ---
 
