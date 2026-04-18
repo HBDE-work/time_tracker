@@ -17,21 +17,27 @@ jobs:
             - name: Checkout source
               uses: actions/checkout@v4
               with:
-                  fetch-depth: 1
-
-            - name: Check commit message / PR title
+                  fetch-depth: 0
+            - name: Base run decision on last commit message
               id: commitcheck
               run: |
                   MSG=$(git log -1 --pretty=%B)
-                  echo "Commit message: $MSG"
+                  echo "Last commit message: $MSG"
 
-                  PR_TITLE="${GITHUB_EVENT_PULL_REQUEST_TITLE:-}"
+                  PR_TITLE="${{ github.event.pull_request.title }}"
 
-                  if [[ "$MSG" == *"[testbuild]"* ]] || [[ "$PR_TITLE" == *"[testbuild]"* ]]; then
-                    echo "proceed=true" >> $GITHUB_OUTPUT
-                  else
-                    echo "proceed=false" >> $GITHUB_OUTPUT
+                  PROCEED=false
+                  if [ "${{ github.event_name }}" == "push" ]; then
+                    PROCEED=true
                   fi
+
+                  if [ "${{ github.event_name }}" == "pull_request" ]; then
+                    if [[ "$MSG" == *"[testbuild]"* ]] || [[ "$PR_TITLE" == *"[testbuild]"* ]]; then
+                        PROCEED=true
+                    fi
+                  fi
+
+                  echo "proceed=$PROCEED" >> $GITHUB_OUTPUT
 
     build-and-test:
         needs: check-commit
