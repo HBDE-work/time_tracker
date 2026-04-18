@@ -9,7 +9,28 @@ on:
             - master
 
 jobs:
+    check-commit:
+        runs-on: ubuntu-latest
+        outputs:
+            proceed: ${{ steps.check.outputs.proceed }}
+        steps:
+            - name: Checkout repo
+              uses: actions/checkout@v4
+
+            - name: Check commit message
+              id: check
+              run: |
+                  MSG=$(git log -1 --pretty=%B)
+                  echo "Commit message: $MSG"
+                  if [[ "$MSG" == *"[testbuild]"* ]]; then
+                    echo "proceed=true" >> $GITHUB_OUTPUT
+                  else
+                    echo "proceed=false" >> $GITHUB_OUTPUT
+                  fi
+
     build-and-test:
+        needs: check-commit
+        if: needs.check-commit.outputs.proceed == 'true'
         runs-on: ubuntu-latest
         container:
             image: rust:1.95
@@ -17,16 +38,6 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
-
-            - name: Check commit message
-              id: commitcheck
-              run: |
-                  MSG=$(git log -1 --pretty=%B)
-                  echo "Commit message: $MSG"
-                  if [[ "$MSG" != *"[testbuild]"* ]]; then
-                      echo "No [testbuild] tag found. Skipping job."
-                      exit 78
-                  fi
 
             - name: Cache cargo registry
               uses: actions/cache@v3
