@@ -10,9 +10,10 @@ on:
 
 jobs:
     build-and-test:
-        if: contains(github.event.head_commit.message, '[testbuild]')
+        if: |
+            (github.event_name == 'push' && contains(github.event.head_commit.message, '[testbuild]')) ||
+            (github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[testbuild]'))
         runs-on: ubuntu-latest
-
         container:
             image: rust:1.95
 
