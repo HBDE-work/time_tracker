@@ -2,22 +2,37 @@ name: Build & Test
 
 on:
     pull_request:
-        branches: [master]
-
+        branches:
+            - master
     push:
         branches:
             - master
 
 jobs:
     build-and-test:
+        if: contains(github.event.head_commit.message, '[testbuild]')
         runs-on: ubuntu-latest
 
         container:
-            image: ubuntu:20.04
+            image: rust:1.95
 
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
+
+            - name: Cache cargo registry
+              uses: actions/cache@v3
+              with:
+                  path: |
+                      ~/.cargo/registry
+                      ~/.cargo/git
+                  key: cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+            - name: Cache target directory
+              uses: actions/cache@v3
+              with:
+                  path: target
+                  key: cargo-target-${{ github.sha }}
 
             - name: Setup Rust environment
               uses: ./.github/actions/setup-rust-env
