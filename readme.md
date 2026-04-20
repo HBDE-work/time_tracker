@@ -4,15 +4,14 @@
 - I was so annoyed by the time tracking tool of my company that I built my own
 - `tracker` is capable to track time within multiple sequential sessions with pauses per day
     - time per session can be sliced further into tasks (optionally assigned to number `0 - 9`)
-- optionally autotrack via (un-) plugging a Smartcard
-- Past Day Record Status can be retrieved
-- Day Records can be edited either directly in the files or via the TUI
+    - supports configurable time limits
 - Data is stored as TOMLs per day under `~/.config/time_tracking/` (Linux) or `%APPDATA%/time_tracking/` (Windows)
 - Run `tracker go` when you start, `tracker pause` for breaks, `tracker stop` when you're done
 - Check Status of your hours
     -  `tracker status` shows the current day
     - `tracker status <dayname> <calendarweek> <year>` looks up past days where the arguments are optional and if omitted default to `current`
         - example: `tracker status monday 23` shows the status of monday of calendarweek 23 of the current year
+- or use the TUI Mode...
 
 ---
 
@@ -29,14 +28,37 @@ This installs the binary as `tracker` in your Cargo bin directory
 ## TUI Mode
 
 - Just run `tracker` without any subcommand and the TUI launches
-- Press `q` or `Esc` to quit
 
 ![TUI Mode](https://github.com/HBDE-work/time_tracker/blob/HEAD/docs/images/tui_mode.png?raw=true)
+
+### Eventkeys
+- send status updates through the `[g]o`, `[p]ause` and `[s]top` buttons or edit the displayed data via `[e]dit`
+
+### Menus
+
+#### Task Menu
+- `[F1]` Task menu: Configure Task names and maximum worktimes
+- When in Task menu, press a number between `0 - 9` and enter a task name
+- a time limit for that task can be set by adding `:<time_limit>`
+    - e.g. `Code Review:2.5`
+- a globally daytime limit is configured through `m` when in Task Menu
+
+#### Smartcard Toggle
+- `[F2]` de- / activate SmartCard control if hardware supports it
+
+#### Record History
+- `[F3]` activates viewing different days within the TUI
+- use `right` and `left` arrow keys to rotate through dayrecords
+
+#### Switch display Unit
+- `[F12]` Toggle between `Hours:Minutes:Seconds` and `Decimal` notation throughout the TUI
+
+#### Exit
+- Press `q` or `Esc` to quit
 
 ---
 
 ## CLI Reference
-
 
 <!-- CLAP_DOC_GEN_START -->
 **Usage:** `tracker <COMMAND>`
