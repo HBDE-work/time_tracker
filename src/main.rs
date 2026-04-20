@@ -1,23 +1,33 @@
 mod arguments;
 mod commands;
 mod data;
+mod storage;
 mod tracking_logic;
 mod tui;
+
+use std::io;
 
 use arguments::{Args, Commands};
 use clap::Parser;
 
 fn main() {
+    storage::migrate_legacy_data();
+
     let args = Args::parse();
 
     match args.command {
-        Some(Commands::Go) => commands::cmd_go(),
+        Some(Commands::Go { task }) => commands::cmd_go(task),
         Some(Commands::Pause) => commands::cmd_pause(),
         Some(Commands::Stop) => commands::cmd_stop(),
-        Some(Commands::Status { day, week, year }) => commands::cmd_status(day, week, year),
+        Some(Commands::Status {
+            day,
+            week,
+            year,
+            decimal,
+        }) => commands::cmd_status(day, week, year, decimal),
         Some(Commands::Tui) => run_tui_here(),
         None => {
-            if std::io::IsTerminal::is_terminal(&std::io::stdin()) {
+            if io::IsTerminal::is_terminal(&io::stdin()) {
                 run_tui_here();
             } else {
                 spawn_terminal_with_tui();
@@ -45,10 +55,8 @@ fn spawn_terminal_with_tui() {
         .spawn();
 
     #[cfg(not(any(target_os = "linux", target_os = "windows")))]
-    let result: Result<std::process::Child, std::io::Error> = Err(std::io::Error::new(
-        std::io::ErrorKind::Unsupported,
-        "unsupported OS",
-    ));
+    let result: Result<std::process::Child, io::Error> =
+        Err(io::Error::new(io::ErrorKind::Unsupported, "unsupported OS"));
 
     match result {
         Ok(_) => {}
@@ -58,7 +66,7 @@ fn spawn_terminal_with_tui() {
 
 /// Tries common Linux terminal emulators in order of preference
 #[cfg(target_os = "linux")]
-fn try_spawn_linux(exe: &std::path::Path) -> Result<std::process::Child, std::io::Error> {
+fn try_spawn_linux(exe: &std::path::Path) -> Result<std::process::Child, io::Error> {
     let exe_str = exe.display().to_string();
     let emulators: &[(&str, &[&str])] = &[
         ("kitty", &[&exe_str, "tui"]),
@@ -77,8 +85,8 @@ fn try_spawn_linux(exe: &std::path::Path) -> Result<std::process::Child, std::io
         }
     }
 
-    Err(std::io::Error::new(
-        std::io::ErrorKind::NotFound,
+    Err(io::Error::new(
+        io::ErrorKind::NotFound,
         "No terminal emulator found. Install one or run 'tracker tui' from a shell.",
     ))
 }

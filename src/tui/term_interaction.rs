@@ -1,56 +1,150 @@
+use std::io;
+use std::time::Duration;
+use std::time::Instant;
+
 use crossterm::event;
 
 use super::app_state::App;
-use super::rendering::render_command_panel;
+use super::rendering::render_actions_column;
+use super::rendering::render_feedback_line;
 use super::rendering::render_status_panel;
+use super::rendering::render_task_editor_panel;
+use super::rendering::render_task_indicators;
+use super::rendering::render_toggles_column;
 
-const REFRESH_INTERVAL: std::time::Duration = std::time::Duration::from_secs(60);
+const REFRESH_INTERVAL: Duration = Duration::from_secs(60);
 
-type Term = ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>;
+type Term = ratatui::Terminal<ratatui::backend::CrosstermBackend<io::Stdout>>;
 
 /// launches the interactive TUI and blocks until the user quits
-pub fn run_tui() -> std::io::Result<()> {
+pub(crate) fn run_tui() -> io::Result<()> {
     let mut terminal = enter_tui_mode()?;
     let mut app = App::new();
-    let mut next_refresh = std::time::Instant::now();
+    let mut next_refresh = Instant::now();
 
     while !app.should_quit {
-        // render
         terminal.draw(|surface| {
             let regions = ratatui::layout::Layout::vertical([
-                ratatui::layout::Constraint::Length(7),
+                ratatui::layout::Constraint::Length(8),
+                ratatui::layout::Constraint::Length(1),
                 ratatui::layout::Constraint::Fill(1),
             ])
             .split(surface.area());
 
-            let cmd_content = render_command_panel(&app.feedback);
-            let cmd_widget = ratatui::widgets::Paragraph::new(cmd_content).block(
-                ratatui::widgets::Block::bordered()
-                    .title("  Commands (q to quit)  ")
-                    .border_style(ratatui::style::Style::new().fg(ratatui::style::Color::Cyan)),
-            );
-            surface.render_widget(cmd_widget, regions[0]);
+            let commands_block = ratatui::widgets::Block::bordered()
+                .title("  Commands (q to quit)  ")
+                .border_style(ratatui::style::Style::new().fg(ratatui::style::Color::Cyan));
+            let commands_area = commands_block.inner(regions[0]);
+            surface.render_widget(commands_block, regions[0]);
 
-            let status_content = render_status_panel();
-            let status_widget = ratatui::widgets::Paragraph::new(status_content).block(
-                ratatui::widgets::Block::bordered()
-                    .title("  Status  ")
-                    .border_style(ratatui::style::Style::new().fg(ratatui::style::Color::Yellow)),
+            let command_columns = ratatui::layout::Layout::horizontal([
+                ratatui::layout::Constraint::Fill(1),
+                ratatui::layout::Constraint::Fill(2),
+                ratatui::layout::Constraint::Min(26),
+            ])
+            .split(commands_area);
+
+            let actions = render_actions_column();
+            surface.render_widget(
+                ratatui::widgets::Paragraph::new(actions),
+                command_columns[0],
             );
-            surface.render_widget(status_widget, regions[1]);
+
+            let tasks = render_task_indicators(&app.config, app.active_task);
+            surface.render_widget(ratatui::widgets::Paragraph::new(tasks), command_columns[1]);
+
+            let toggles = render_toggles_column(
+                app.config.smartcard_active(),
+                app.reader_status,
+                app.task_editor_open,
+                app.decimal_time_format,
+                app.history_mode,
+            );
+            surface.render_widget(
+                ratatui::widgets::Paragraph::new(toggles)
+                    .alignment(ratatui::layout::Alignment::Right),
+                command_columns[2],
+            );
+
+            let feedback_line = render_feedback_line(&app.feedback);
+            surface.render_widget(ratatui::widgets::Paragraph::new(feedback_line), regions[1]);
+
+            if app.task_editor_open {
+                let editor_content = render_task_editor_panel(
+                    &app.config,
+                    app.editing_slot,
+                    &app.editing_buffer,
+                    app.editing_max_hours,
+                );
+                let editor_widget = ratatui::widgets::Paragraph::new(editor_content).block(
+                    ratatui::widgets::Block::bordered()
+                        .title("  Task Editor [F1]  ")
+                        .border_style(
+                            ratatui::style::Style::new().fg(ratatui::style::Color::Yellow),
+                        ),
+                );
+                surface.render_widget(editor_widget, regions[2]);
+            } else {
+                let viewed_date = if app.history_mode {
+                    Some(app.get_viewed_date())
+                } else {
+                    None
+                };
+                let status_content = render_status_panel(app.decimal_time_format, viewed_date);
+                let status_widget = ratatui::widgets::Paragraph::new(status_content).block(
+                    ratatui::widgets::Block::bordered()
+                        .title("  Status  ")
+                        .border_style(
+                            ratatui::style::Style::new().fg(ratatui::style::Color::Yellow),
+                        ),
+                );
+                surface.render_widget(status_widget, regions[2]);
+            }
         })?;
 
-        // poll for input or tick
-        let wait = REFRESH_INTERVAL.saturating_sub(next_refresh.elapsed());
+        app.process_card_events();
+
+        let max_wait = if app.config.smartcard_active() {
+            Duration::from_millis(250)
+        } else {
+            REFRESH_INTERVAL
+        };
+        let wait = max_wait.min(REFRESH_INTERVAL.saturating_sub(next_refresh.elapsed()));
         if event::poll(wait)?
             && let event::Event::Key(ev) = event::read()?
             && ev.kind == event::KeyEventKind::Press
         {
+            // Check if this is the edit key before handling
+            let is_edit_key = matches!(ev.code, event::KeyCode::Char('e'));
+
             app.handle_key(ev.code);
+
+            // Handle editor opening with TUI suspension
+            if is_edit_key && !app.task_editor_open {
+                // Suspend TUI
+                restore_terminal(&mut terminal);
+
+                // Open file in editor
+                let file_path = app.get_toml_path();
+                match crate::storage::open_in_editor(&file_path) {
+                    Ok(()) => {
+                        app.feedback = format!(
+                            "Edited {}. Press any key to continue.",
+                            app.get_viewed_date().format("%Y-%m-%d")
+                        );
+                    }
+                    Err(err) => {
+                        app.feedback = format!("Editor error: {}", err);
+                    }
+                }
+
+                // Resume TUI
+                terminal = enter_tui_mode()?;
+            }
         }
 
         if next_refresh.elapsed() >= REFRESH_INTERVAL {
-            next_refresh = std::time::Instant::now();
+            next_refresh = Instant::now();
         }
     }
 
@@ -62,10 +156,10 @@ pub fn run_tui() -> std::io::Result<()> {
 /// ratatui terminal handle
 ///
 /// Caller is responsible for calling `restore_terminal` when finished
-fn enter_tui_mode() -> std::io::Result<Term> {
+fn enter_tui_mode() -> io::Result<Term> {
     crossterm::terminal::enable_raw_mode()?;
-    crossterm::execute!(std::io::stdout(), crossterm::terminal::EnterAlternateScreen)?;
-    ratatui::Terminal::new(ratatui::backend::CrosstermBackend::new(std::io::stdout()))
+    crossterm::execute!(io::stdout(), crossterm::terminal::EnterAlternateScreen)?;
+    ratatui::Terminal::new(ratatui::backend::CrosstermBackend::new(io::stdout()))
 }
 
 /// Undoes everything `enter_tui_mode` did so the users shell is usable again

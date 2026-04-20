@@ -1,6 +1,6 @@
+use crate::commands::stop_task_then;
 use crate::data::EventKind;
-use crate::tracking_logic::execute_action;
 
-pub fn cmd_stop() {
-    println!("{}", execute_action(EventKind::Stop));
+pub(crate) fn cmd_stop() {
+    stop_task_then(EventKind::Stop)
 }

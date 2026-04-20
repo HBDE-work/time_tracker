@@ -3,15 +3,19 @@ use clap::{Parser, Subcommand};
 #[derive(Parser, Debug)]
 #[command(name = "Time Tracker")]
 #[command(version, about = "Simple CLI Timetracker", long_about = None)]
-pub struct Args {
+pub(crate) struct Args {
     #[command(subcommand)]
-    pub command: Option<Commands>,
+    pub(crate) command: Option<Commands>,
 }
 
 #[derive(Subcommand, Debug)]
-pub enum Commands {
-    /// Start or resume tracking
-    Go,
+pub(crate) enum Commands {
+    /// Start or resume tracking (optionally for a named task)
+    Go {
+        /// Track a named task (e.g. --task "Code Review")
+        #[arg(short, long)]
+        task: Option<String>,
+    },
     /// Pause the current tracking
     Pause,
     /// Stop tracking for today
@@ -24,6 +28,9 @@ pub enum Commands {
         week: Option<u32>,
         /// Year (defaults to current year)
         year: Option<i32>,
+        /// Display time in decimal hours format
+        #[arg(short, long)]
+        decimal: bool,
     },
     /// Launch interactive terminal UI
     Tui,

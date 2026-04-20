@@ -2,22 +2,70 @@ name: Build & Test
 
 on:
     pull_request:
-        branches: [master]
-
+        branches:
+            - master
     push:
         branches:
             - master
 
 jobs:
-    build-and-test:
+    check-commit:
         runs-on: ubuntu-latest
-
-        container:
-            image: ubuntu:20.04
-
+        outputs:
+            proceed: ${{ steps.commitcheck.outputs.proceed }}
         steps:
-            - name: Checkout code
+            - name: Checkout source
               uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+                  fetch-depth: 1
+
+            - name: Base run decision on last commit message
+              id: commitcheck
+              run: |
+                  MSG=$(git log -1 --pretty=%B)
+                  echo "Last commit message: $MSG"
+
+                  PR_TITLE="${{ github.event.pull_request.title }}"
+
+                  PROCEED=false
+                  if [ "${{ github.event_name }}" == "push" ]; then
+                    PROCEED=true
+                  fi
+
+                  if [ "${{ github.event_name }}" == "pull_request" ]; then
+                    if [[ "$MSG" == *"[testbuild]"* ]] || [[ "$PR_TITLE" == *"[testbuild]"* ]]; then
+                        PROCEED=true
+                    fi
+                  fi
+
+                  echo "proceed=$PROCEED" >> $GITHUB_OUTPUT
+
+    build-and-test:
+        needs: check-commit
+        if: needs.check-commit.outputs.proceed == 'true'
+        runs-on: ubuntu-latest
+        container:
+            image: ubuntu:20.04 # compatibility choice
+        steps:
+            - name: Checkout source
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 1
+
+            - name: Cache cargo registry
+              uses: actions/cache@v3
+              with:
+                  path: |
+                      ~/.cargo/registry
+                      ~/.cargo/git
+                  key: cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+            - name: Cache target directory
+              uses: actions/cache@v3
+              with:
+                  path: target
+                  key: cargo-target-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
 
             - name: Setup Rust environment
               uses: ./.github/actions/setup-rust-env
@@ -37,10 +85,13 @@ jobs:
             - name: Set artifact name base
               id: vars
               shell: bash
+              env:
+                  PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+                  GITHUB_REF_NAME: ${{ github.ref_name }}
               run: |
                   BRANCH="${GITHUB_REF_NAME//\//-}"
-                  if [ -n "${{ github.event.pull_request.number }}" ]; then
-                    echo "NAME=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+                  if [ -n "$PR_NUMBER" ]; then
+                    echo "NAME=pr-$PR_NUMBER" >> $GITHUB_OUTPUT
                   else
                     echo "NAME=$BRANCH" >> $GITHUB_OUTPUT
                   fi
@@ -49,8 +100,7 @@ jobs:
               uses: actions/upload-artifact@v4
               with:
                   name: linux-pr-${{ steps.vars.outputs.NAME }}--${{ github.sha }}
-                  path: |
-                      dist/*linux*.zip
+                  path: dist/*linux*.zip
                   if-no-files-found: warn
                   retention-days: 7
 
@@ -58,7 +108,6 @@ jobs:
               uses: actions/upload-artifact@v4
               with:
                   name: windows-pr-${{ steps.vars.outputs.NAME }}--${{ github.sha }}
-                  path: |
-                      dist/*windows*.zip
+                  path: dist/*windows*.zip
                   if-no-files-found: warn
                   retention-days: 7
