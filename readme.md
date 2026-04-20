@@ -39,38 +39,59 @@ This installs the binary as `tracker` in your Cargo bin directory
 
 
 <!-- CLAP_DOC_GEN_START -->
-`tracker [OPTIONS] <COMMAND>`
+**Usage:** `tracker <COMMAND>`
 
-### Commands
+Simple CLI Timetracker
 
-#### `go`:                  Start or resume tracking (optionally for a named task)
-- args:
-    - `-t, --task <TASK>`:    Track a named task (e.g. --task "Code Review")
-    - `-h, --help`:    Print help
+#### Commands
 
-#### `pause`:               Pause the current tracking
-- args:
-    - `-h, --help`:    Print help
+| Command | Description |
+|---------|-------------|
+| `go` | Start or resume tracking (optionally for a named task) |
+| `pause` | Pause the current tracking |
+| `stop` | Stop tracking for today |
+| `status` | Show tracked hours (today by default, or a specific weekday of a given week/year) |
+| `tui` | Launch interactive terminal UI |
 
-#### `stop`:                Stop tracking for today
-- args:
-    - `-h, --help`:    Print help
+### `tracker go`
 
-#### `status`:              Show tracked hours (today by default, or a specific weekday of a given week/year)
-- args:
-    - `-h, --help`:    Print help
+Start or resume tracking (optionally for a named task)
 
-#### `tui`:                 Launch interactive terminal UI
-- args:
-    - `-h, --help`:    Print help
+#### Options
 
-#### `help`:                Print this message or the help of the given subcommand(s)
+| Options | Description |
+|------|------|
+| `-t, --task <TASK>` | Track a named task (e.g. --task "Code Review") |
 
+### `tracker pause`
 
-### Global Options
+Pause the current tracking
 
-- `-h, --help`:              Print help
-- `-V, --version`:           Print version
+### `tracker stop`
+
+Stop tracking for today
+
+### `tracker status`
+
+Show tracked hours (today by default, or a specific weekday of a given week/year)
+
+#### Arguments
+
+| Arguments | Description |
+|------|------|
+| `<DAY>` | Weekday name (e.g. "monday", "tue") |
+| `<WEEK>` | Calendar week number (1-53, defaults to current week) |
+| `<YEAR>` | Year (defaults to current year) |
+
+#### Options
+
+| Options | Description |
+|------|------|
+| `-d, --decimal` | Display time in decimal hours format |
+
+### `tracker tui`
+
+Launch interactive terminal UI
 
 <!-- CLAP_DOC_GEN_END -->
 
