@@ -5,7 +5,7 @@ edition = "2024"
 description = "Simple Time Tracking TUI and CLI"
 readme = "readme.md"
 repository = "https://github.com/HBDE-work/time_tracker/tree/master"
-license = "MIT"
+license = "GPL-2.0"
 keywords = ["cli", "time", "tracker"]
 categories = ["command-line-utilities"]
 
