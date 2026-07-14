@@ -6,6 +6,7 @@ use crossterm::event;
 
 use super::app_state::App;
 use super::rendering::render_actions_column;
+use super::rendering::render_autopause_editor_panel;
 use super::rendering::render_feedback_line;
 use super::rendering::render_status_panel;
 use super::rendering::render_task_editor_panel;
@@ -59,6 +60,7 @@ pub(crate) fn run_tui() -> io::Result<()> {
                 app.task_editor_open,
                 app.decimal_time_format,
                 app.history_mode,
+                !app.config.auto_pause_rules().is_empty(),
             );
             surface.render_widget(
                 ratatui::widgets::Paragraph::new(toggles)
@@ -84,6 +86,20 @@ pub(crate) fn run_tui() -> io::Result<()> {
                         ),
                 );
                 surface.render_widget(editor_widget, regions[2]);
+            } else if app.autopause_editor_open {
+                let autopause_content = render_autopause_editor_panel(
+                    &app.config,
+                    app.editing_autopause_index,
+                    &app.editing_autopause_buffer,
+                );
+                let autopause_widget = ratatui::widgets::Paragraph::new(autopause_content).block(
+                    ratatui::widgets::Block::bordered()
+                        .title("  Pause Rules [F11]  ")
+                        .border_style(
+                            ratatui::style::Style::new().fg(ratatui::style::Color::Magenta),
+                        ),
+                );
+                surface.render_widget(autopause_widget, regions[2]);
             } else {
                 let viewed_date = if app.history_mode {
                     Some(app.get_viewed_date())

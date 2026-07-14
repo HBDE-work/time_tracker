@@ -9,6 +9,7 @@ use ratatui::text::Span;
 use crate::data::DayRecord;
 use crate::data::glyphs::TUI;
 use crate::storage::load_record;
+use crate::tracking_logic::apply_auto_pause;
 use crate::tracking_logic::calculate_session_paused;
 use crate::tracking_logic::calculate_session_total;
 use crate::tracking_logic::calculate_task_durations;
@@ -30,8 +31,13 @@ pub(crate) fn render_status_panel(
     let actively_running = is_today && record.has_active_session();
 
     let total_time = calculate_total_time(&record, actively_running);
-    let total_paused = calculate_total_paused(&record, actively_running);
-    let total_worked = calculate_worked(&record, actively_running);
+    let raw_paused = calculate_total_paused(&record, actively_running);
+    let raw_worked = calculate_worked(&record, actively_running);
+
+    // apply pause rules if actual pause < required minimum
+    let config = crate::storage::TrackerConfig::load();
+    let effective_paused = apply_auto_pause(raw_worked, raw_paused, config.auto_pause_rules());
+    let effective_worked = total_time - effective_paused;
 
     let mut content: Vec<Line<'static>> = Vec::new();
 
@@ -71,6 +77,14 @@ pub(crate) fn render_status_panel(
         format_duration
     };
 
+    // show pause adjustment notice when it is active
+    let auto_pause_bump = effective_paused - raw_paused;
+    let override_pause = if auto_pause_bump.num_seconds() > 0 {
+        format!("{} ", TUI.scales)
+    } else {
+        String::new()
+    };
+
     // Build time summary line with optional remaining time
     let mut time_summary_spans = vec![
         Span::styled("  Total: ", Style::new().add_modifier(Modifier::BOLD)),
@@ -79,19 +93,21 @@ pub(crate) fn render_status_panel(
             Style::new().fg(Color::White).add_modifier(Modifier::BOLD),
         ),
         Span::styled("  |  Paused: ", Style::new().add_modifier(Modifier::BOLD)),
-        Span::styled(format_fn(total_paused), Style::new().fg(Color::Yellow)),
+        Span::styled(
+            format!("{}{}", override_pause, format_fn(effective_paused)),
+            Style::new().fg(Color::Yellow),
+        ),
         Span::styled("  |  Worked: ", Style::new().add_modifier(Modifier::BOLD)),
         Span::styled(
-            format_fn(total_worked),
+            format_fn(effective_worked),
             Style::new().fg(Color::Green).add_modifier(Modifier::BOLD),
         ),
     ];
 
-    // Add remaining time if max hours is configured
-    let config = crate::storage::TrackerConfig::load();
+    // add remaining time if max hours is configured
     if let Some(max_hours) = config.max_hours_per_day() {
         let max_duration = chrono::Duration::seconds((max_hours * 3600.0) as i64);
-        let remaining = max_duration - total_worked;
+        let remaining = max_duration - effective_worked;
 
         let (remaining_text, remaining_color) = if remaining.num_seconds() <= 0 {
             ("EXCEEDED".to_string(), Color::Red)
@@ -116,7 +132,7 @@ pub(crate) fn render_status_panel(
     content.push(Line::from(time_summary_spans));
 
     content.push(Line::raw(""));
-    render_task_durations(&record, total_worked, decimal_format, &mut content);
+    render_task_durations(&record, effective_worked, decimal_format, &mut content);
 
     content.push(Line::raw(""));
     content.push(Line::from(Span::styled(

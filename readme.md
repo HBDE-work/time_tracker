@@ -50,6 +50,23 @@ This installs the binary as `tracker` in your Cargo bin directory
 - `[F3]` activates viewing different days within the TUI
 - use `right` and `left` arrow keys to rotate through dayrecords
 
+#### Automatic Pause Thresholds
+- `[F11]` activates the interactive menu to configure tresholds (format: `HOURS:MINUTES`, e.g. `6.017:30`)
+
+##### Common legal break requirements (e.g. German § 4 ArbZG)
+
+| Working time       | Required minimum break |
+| ------------------ | ---------------------- |
+| more than 6h 01min | 30 minutes             |
+| more than 9h 31min | 45 minutes             |
+
+Because the comparison is `>=`, set the threshold **just above** the boundary to avoid deducting a break at exactly 6h or 9h:
+
+| boundary   | `after_hours` | Calculation        |
+| ---------- | ------------- | ------------------ |
+| > 6h 01min | `6.017`       | 6 + 1/60 ≈ 6.0167  |
+| > 9h 31min | `9.517`       | 9 + 31/60 ≈ 9.5167 |
+
 #### Switch display Unit
 - `[F12]` Toggle between `Hours:Minutes:Seconds` and `Decimal` notation throughout the TUI
 
@@ -67,13 +84,13 @@ Simple CLI Timetracker
 
 #### Commands
 
-| Command | Description |
-|---------|-------------|
-| `go` | Start or resume tracking (optionally for a named task) |
-| `pause` | Pause the current tracking |
-| `stop` | Stop tracking for today |
+| Command  | Description                                                                       |
+| -------- | --------------------------------------------------------------------------------- |
+| `go`     | Start or resume tracking (optionally for a named task)                            |
+| `pause`  | Pause the current tracking                                                        |
+| `stop`   | Stop tracking for today                                                           |
 | `status` | Show tracked hours (today by default, or a specific weekday of a given week/year) |
-| `tui` | Launch interactive terminal UI |
+| `tui`    | Launch interactive terminal UI                                                    |
 
 ### `tracker go`
 
@@ -81,8 +98,8 @@ Start or resume tracking (optionally for a named task)
 
 #### Options
 
-| Options | Description |
-|------|------|
+| Options             | Description                                    |
+| ------------------- | ---------------------------------------------- |
 | `-t, --task <TASK>` | Track a named task (e.g. --task "Code Review") |
 
 ### `tracker pause`
@@ -99,16 +116,16 @@ Show tracked hours (today by default, or a specific weekday of a given week/year
 
 #### Arguments
 
-| Arguments | Description |
-|------|------|
-| `<DAY>` | Weekday name (e.g. "monday", "tue") |
-| `<WEEK>` | Calendar week number (1-53, defaults to current week) |
-| `<YEAR>` | Year (defaults to current year) |
+| Arguments | Description                                           |
+| --------- | ----------------------------------------------------- |
+| `<DAY>`   | Weekday name (e.g. "monday", "tue")                   |
+| `<WEEK>`  | Calendar week number (1-53, defaults to current week) |
+| `<YEAR>`  | Year (defaults to current year)                       |
 
 #### Options
 
-| Options | Description |
-|------|------|
+| Options         | Description                          |
+| --------------- | ------------------------------------ |
 | `-d, --decimal` | Display time in decimal hours format |
 
 ### `tracker tui`

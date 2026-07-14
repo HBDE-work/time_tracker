@@ -133,3 +133,28 @@ pub(crate) fn calculate_total_paused(record: &DayRecord, up_to_now: bool) -> Dur
         })
         .fold(Duration::zero(), |acc, d| acc + d)
 }
+
+/// Note: the highest required minimum in rules wins
+pub(crate) fn apply_auto_pause(
+    worked: Duration,
+    paused: Duration,
+    rules: &[crate::storage::AutoPauseRule],
+) -> Duration {
+    let required_pause_minutes = rules
+        .iter()
+        .filter(|rule| {
+            let threshold = Duration::seconds((rule.after_hours * 3600.0) as i64);
+            worked >= threshold
+        })
+        .map(|rule| rule.minimum_pause_minutes)
+        .max();
+
+    match required_pause_minutes {
+        Some(minimum_minutes) => {
+            // replace with the minimum if actual pause is below it
+            let minimum_pause = Duration::minutes(minimum_minutes as i64);
+            paused.max(minimum_pause)
+        }
+        None => paused,
+    }
+}
