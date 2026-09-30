@@ -12,8 +12,11 @@ use super::rendering::render_status_panel;
 use super::rendering::render_task_editor_panel;
 use super::rendering::render_task_indicators;
 use super::rendering::render_toggles_column;
+use crate::tui::notifications::time_excess::is_max_time_exceeded;
+use crate::tui::notifications::trigger::notify_max_time_exceeded;
 
 const REFRESH_INTERVAL: Duration = Duration::from_secs(60);
+const EXCEEDED_NOTIFICATION_INTERVAL: Duration = Duration::from_secs(5 * 60);
 
 type Term = ratatui::Terminal<ratatui::backend::CrosstermBackend<io::Stdout>>;
 
@@ -22,8 +25,11 @@ pub(crate) fn run_tui() -> io::Result<()> {
     let mut terminal = enter_tui_mode()?;
     let mut app = App::new();
     let mut next_refresh = Instant::now();
+    let mut last_exceeded_notification: Option<Instant> = None;
 
     while !app.should_quit {
+        last_exceeded_notification = notify_time_exceeded(&app, last_exceeded_notification);
+
         terminal.draw(|surface| {
             let regions = ratatui::layout::Layout::vertical([
                 ratatui::layout::Constraint::Length(8),
@@ -183,4 +189,21 @@ fn restore_terminal(t: &mut Term) {
     let _ = crossterm::execute!(t.backend_mut(), crossterm::terminal::LeaveAlternateScreen);
     let _ = crossterm::terminal::disable_raw_mode();
     let _ = t.show_cursor();
+}
+
+fn notify_time_exceeded(app: &App, last_exceeded: Option<Instant>) -> Option<Instant> {
+    let max_time_exceeded = is_max_time_exceeded(app);
+    let should_notify = max_time_exceeded
+        && last_exceeded.is_none_or(|last_notification| {
+            last_notification.elapsed() >= EXCEEDED_NOTIFICATION_INTERVAL
+        });
+
+    if should_notify {
+        notify_max_time_exceeded();
+        Some(Instant::now())
+    } else if max_time_exceeded {
+        last_exceeded
+    } else {
+        None
+    }
 }

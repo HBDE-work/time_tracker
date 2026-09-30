@@ -1,6 +1,6 @@
 [package]
 name = "time-tracker-cli"
-version = "0.3.0-alpha.2"
+version = "0.3.0"
 edition = "2024"
 description = "Simple Time Tracking TUI and CLI"
 readme = "readme.md"
