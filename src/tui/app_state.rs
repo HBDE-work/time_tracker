@@ -34,6 +34,10 @@ pub(crate) struct App {
 
     pub history_mode: bool,
     pub viewed_day_offset: i32,
+
+    pub autopause_editor_open: bool,
+    pub editing_autopause_buffer: String,
+    pub editing_autopause_index: Option<usize>,
 }
 
 impl App {
@@ -67,6 +71,9 @@ impl App {
             decimal_time_format: config.decimal_time_format(),
             history_mode: false,
             viewed_day_offset: 0,
+            autopause_editor_open: false,
+            editing_autopause_buffer: String::new(),
+            editing_autopause_index: None,
             config,
         }
     }
@@ -77,8 +84,18 @@ impl App {
             return;
         }
 
+        if self.editing_autopause_index.is_some() {
+            self.handle_key_autopause_editing(code);
+            return;
+        }
+
         if self.task_editor_open {
             self.handle_key_editor_browse(code);
+            return;
+        }
+
+        if self.autopause_editor_open {
+            self.handle_key_autopause_browse(code);
             return;
         }
 
@@ -88,13 +105,14 @@ impl App {
     fn handle_key_normal(&mut self, code: KeyCode) {
         match code {
             KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
-            KeyCode::Char('g') => self.handle_go(),
-            KeyCode::Char('p') => self.handle_pause(),
-            KeyCode::Char('s') => self.handle_stop(),
-            KeyCode::Char('e') => self.handle_edit_day(),
+            KeyCode::Char('g') | KeyCode::Char('G') => self.handle_go(),
+            KeyCode::Char('p') | KeyCode::Char('P') => self.handle_pause(),
+            KeyCode::Char('s') | KeyCode::Char('S') => self.handle_stop(),
+            KeyCode::Char('e') | KeyCode::Char('E') => self.handle_edit_day(),
             KeyCode::F(1) => self.toggle_task_editor(),
             KeyCode::F(2) => self.toggle_smartcard(),
             KeyCode::F(3) => self.toggle_history_mode(),
+            KeyCode::F(11) => self.toggle_autopause_editor(),
             KeyCode::F(12) => self.toggle_time_format(),
             KeyCode::Left if self.history_mode => {
                 self.navigate_history(-1);
@@ -301,6 +319,139 @@ impl App {
         self.active_task = Some(slot);
     }
 
+    fn toggle_autopause_editor(&mut self) {
+        if self.autopause_editor_open {
+            self.editing_autopause_index = None;
+            self.editing_autopause_buffer.clear();
+        }
+        self.autopause_editor_open = !self.autopause_editor_open;
+
+        if self.autopause_editor_open {
+            self.feedback =
+                "Pause Editor: [N] new rule  [1-9] edit rule  [D+digit] delete  [Esc/F11] close"
+                    .into();
+        } else {
+            self.feedback = "Auto-Pause Editor closed.".into();
+        }
+    }
+
+    fn handle_key_autopause_browse(&mut self, code: KeyCode) {
+        match code {
+            KeyCode::F(11) | KeyCode::Esc => self.toggle_autopause_editor(),
+            KeyCode::Char('n') | KeyCode::Char('N') => {
+                self.editing_autopause_index = Some(usize::MAX); // new rule mode
+                self.editing_autopause_buffer.clear();
+                self.feedback =
+                    "New rule: type HOURS:MINUTES (e.g. 8:30), Enter to save, Esc to cancel".into();
+            }
+            KeyCode::Char('d') | KeyCode::Char('D') => {
+                self.feedback = "Delete rule: press the rule number to remove it.".into();
+                self.editing_autopause_index = Some(usize::MAX - 1); // delete mode
+            }
+            KeyCode::Char(ch) if ch.is_ascii_digit() && ch != '0' => {
+                let idx = (ch as u8 - b'1') as usize;
+
+                // if delete mode
+                if self.editing_autopause_index == Some(usize::MAX - 1) {
+                    let mut rules = self.config.auto_pause_rules().to_owned();
+                    if idx < rules.len() {
+                        let removed = rules.remove(idx);
+                        self.config.set_auto_pause_rules(rules);
+                        self.save_config();
+                        self.feedback = format!(
+                            "Rule {} deleted (after {}h -> {}min pause).",
+                            idx + 1,
+                            removed.after_hours,
+                            removed.minimum_pause_minutes
+                        );
+                    } else {
+                        self.feedback = format!("No rule {} to delete.", idx + 1);
+                    }
+                    self.editing_autopause_index = None;
+                    return;
+                }
+
+                let rules = self.config.auto_pause_rules();
+                if idx < rules.len() {
+                    let rule = &rules[idx];
+                    self.editing_autopause_buffer =
+                        format!("{}:{}", rule.after_hours, rule.minimum_pause_minutes);
+                    self.editing_autopause_index = Some(idx);
+                    self.feedback = format!(
+                        "Editing rule {}: HOURS:MINUTES, Enter to save, Esc to cancel",
+                        idx + 1
+                    );
+                } else {
+                    self.feedback = format!("No rule at slot {}.", idx + 1);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_key_autopause_editing(&mut self, code: KeyCode) {
+        match code {
+            KeyCode::Enter => {
+                let raw = self.editing_autopause_buffer.trim().to_owned();
+                match parse_autopause_rule(&raw) {
+                    Ok((after_hours, minimum_pause_minutes)) => {
+                        use crate::storage::AutoPauseRule;
+                        let new_rule = AutoPauseRule::new(after_hours, minimum_pause_minutes);
+                        let mut rules = self.config.auto_pause_rules().to_owned();
+
+                        let slot = self.editing_autopause_index.unwrap_or(usize::MAX);
+                        if slot == usize::MAX {
+                            rules.push(new_rule);
+                            // keep rules sorted by threshold
+                            rules.sort_by(|rule_a, rule_b| {
+                                rule_a
+                                    .after_hours
+                                    .partial_cmp(&rule_b.after_hours)
+                                    .unwrap_or(std::cmp::Ordering::Equal)
+                            });
+                            self.feedback = format!(
+                                "Auto-pause rule added: after {after_hours}h -> {minimum_pause_minutes}min pause."
+                            );
+                        } else {
+                            if slot < rules.len() {
+                                rules[slot] = new_rule;
+                                rules.sort_by(|rule_a, rule_b| {
+                                    rule_a
+                                        .after_hours
+                                        .partial_cmp(&rule_b.after_hours)
+                                        .unwrap_or(std::cmp::Ordering::Equal)
+                                });
+                            }
+                            self.feedback = format!(
+                                "Rule updated: after {after_hours}h -> {minimum_pause_minutes}min pause."
+                            );
+                        }
+
+                        self.config.set_auto_pause_rules(rules);
+                        self.save_config();
+                    }
+                    Err(hint) => {
+                        self.feedback = format!("Invalid format: {hint}");
+                    }
+                }
+                self.editing_autopause_index = None;
+                self.editing_autopause_buffer.clear();
+            }
+            KeyCode::Esc => {
+                self.editing_autopause_index = None;
+                self.editing_autopause_buffer.clear();
+                self.feedback = "Edit cancelled.".into();
+            }
+            KeyCode::Backspace => {
+                self.editing_autopause_buffer.pop();
+            }
+            KeyCode::Char(ch) if ch.is_ascii_digit() || ch == '.' || ch == ':' => {
+                self.editing_autopause_buffer.push(ch);
+            }
+            _ => {}
+        }
+    }
+
     fn toggle_task_editor(&mut self) {
         if self.task_editor_open {
             self.editing_slot = None;
@@ -367,7 +518,7 @@ impl App {
     fn toggle_history_mode(&mut self) {
         self.history_mode = !self.history_mode;
         if self.history_mode {
-            self.feedback = "History mode: ON - Use ← → to navigate days".into();
+            self.feedback = "History mode: ON - Use <- | -> to navigate days".into();
         } else {
             self.viewed_day_offset = 0;
             self.feedback = "History mode: OFF - Viewing today".into();
@@ -424,4 +575,34 @@ impl App {
             }
         }
     }
+}
+
+/// Parse a rule string of the form "HOURS:MINUTES" (e.g. "8:30" or "8.5:45")
+///
+/// Returns `(after_hours, minimum_pause_minutes)` or an error hint string
+fn parse_autopause_rule(input: &str) -> Result<(f64, u64), String> {
+    let (hours_part, minutes_part) = input
+        .split_once(':')
+        .ok_or_else(|| "expected format HOURS:MINUTES (e.g. 8:30)".to_string())?;
+
+    let after_hours = hours_part
+        .trim()
+        .parse::<f64>()
+        .map_err(|_| format!("'{hours_part}' is not a valid number of hours"))?;
+
+    let minimum_pause_minutes = minutes_part
+        .trim()
+        .parse::<u64>()
+        .map_err(|_| format!("'{minutes_part}' is not a valid number of minutes"))?;
+
+    if after_hours <= 0.0 || after_hours > 24.0 {
+        return Err(format!("hours must be between 0 and 24, got {after_hours}"));
+    }
+    if minimum_pause_minutes == 0 || minimum_pause_minutes > 480 {
+        return Err(format!(
+            "pause minutes must be between 1 and 480, got {minimum_pause_minutes}"
+        ));
+    }
+
+    Ok((after_hours, minimum_pause_minutes))
 }

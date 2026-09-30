@@ -14,6 +14,7 @@ pub(crate) fn render_toggles_column(
     task_editor_open: bool,
     decimal_time_format: bool,
     history_mode: bool,
+    autopause_active: bool,
 ) -> Vec<Line<'static>> {
     let mut content: Vec<Line<'static>> = Vec::new();
     content.push(Line::raw(""));
@@ -73,6 +74,24 @@ pub(crate) fn render_toggles_column(
         Span::styled(
             f3_state,
             Style::new().fg(f3_color).add_modifier(Modifier::BOLD),
+        ),
+    ]));
+
+    // F11 - Auto-Pause rules
+    let (f11_state, f11_color) = if autopause_active {
+        ("ON ", Color::Green)
+    } else {
+        ("OFF", Color::DarkGray)
+    };
+    content.push(Line::from(vec![
+        Span::styled(
+            "[F11]",
+            Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(format!("  {}   ", TUI.clock), Style::new().fg(Color::White)),
+        Span::styled(
+            f11_state,
+            Style::new().fg(f11_color).add_modifier(Modifier::BOLD),
         ),
     ]));
 

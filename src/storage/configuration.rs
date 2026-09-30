@@ -57,6 +57,33 @@ pub(crate) struct SmartcardConfig {
     pub(crate) active: bool,
 }
 
+/// A single pause rule: after `after_hours` of combined work
+///
+/// at least `minimum_pause_minutes` of pause must have been taken
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub(crate) struct AutoPauseRule {
+    /// Combined working time threshold in hours (e.g. 8.0)
+    pub(crate) after_hours: f64,
+    /// Minimum pause that must be recorded in minutes (e.g. 30)
+    pub(crate) minimum_pause_minutes: u64,
+}
+
+impl AutoPauseRule {
+    pub(crate) fn new(after_hours: f64, minimum_pause_minutes: u64) -> Self {
+        Self {
+            after_hours,
+            minimum_pause_minutes,
+        }
+    }
+}
+
+/// `[autopause]` in TOML section with a `rules` array
+#[derive(Default, Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct AutoPauseConfig {
+    #[serde(default)]
+    pub(crate) rules: Vec<AutoPauseRule>,
+}
+
 /// Maps slot keys `"0"` - `"9"` to task information
 pub(crate) type TaskMap = BTreeMap<String, TaskInfo>;
 
@@ -76,6 +103,10 @@ pub(crate) struct TrackerConfig {
     /// Display time in decimal format
     #[serde(default)]
     pub(crate) decimal_time_format: bool,
+
+    /// Automatic pause rules
+    #[serde(default)]
+    pub(crate) autopause: AutoPauseConfig,
 }
 
 impl TrackerConfig {
@@ -139,6 +170,16 @@ impl TrackerConfig {
         self.decimal_time_format = enabled;
     }
 
+    /// Return all configured auto-pause rules
+    pub(crate) fn auto_pause_rules(&self) -> &[AutoPauseRule] {
+        &self.autopause.rules
+    }
+
+    /// Replace all auto-pause rules
+    pub(crate) fn set_auto_pause_rules(&mut self, rules: Vec<AutoPauseRule>) {
+        self.autopause.rules = rules;
+    }
+
     /// Load config from disk and fall back to defaults when missing or invalid
     pub(crate) fn load() -> Self {
         let raw = match fs::read_to_string(config_path()) {
@@ -160,6 +201,7 @@ impl TrackerConfig {
                 tasks: BTreeMap::new(),
                 max_hours_per_day: None,
                 decimal_time_format: false,
+                autopause: AutoPauseConfig::default(),
             };
             let _ = migrated.save();
             return migrated;

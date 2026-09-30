@@ -1,7 +1,9 @@
 use chrono::Local;
 
 use crate::data::glyphs::CLI;
+use crate::storage::TrackerConfig;
 use crate::storage::load_record;
+use crate::tracking_logic::apply_auto_pause;
 use crate::tracking_logic::calculate_session_paused;
 use crate::tracking_logic::calculate_session_total;
 use crate::tracking_logic::calculate_total_paused;
@@ -24,8 +26,15 @@ pub(crate) fn cmd_status(day: Option<String>, week: Option<u32>, year: Option<i3
             let still_running = is_today && record.has_active_session();
 
             let total_time = calculate_total_time(&record, still_running);
-            let total_paused = calculate_total_paused(&record, still_running);
-            let total_worked = calculate_worked(&record, still_running);
+            let raw_paused = calculate_total_paused(&record, still_running);
+            let raw_worked = calculate_worked(&record, still_running);
+
+            // apply pause rules for the day totals
+            let config = TrackerConfig::load();
+            let effective_paused =
+                apply_auto_pause(raw_worked, raw_paused, config.auto_pause_rules());
+            let effective_worked = total_time - effective_paused;
+            let auto_pause_bump = effective_paused - raw_paused;
 
             let format_fn = if decimal {
                 format_duration_decimal
@@ -55,7 +64,7 @@ pub(crate) fn cmd_status(day: Option<String>, week: Option<u32>, year: Option<i3
                     println!("    {} {}", event.time.format("%H:%M"), event.kind);
                 }
 
-                // Calculate and display session metrics
+                // session metrics are always raw (auto-pause is a day-level adjustment)
                 let session_total = calculate_session_total(session, still_running && is_last);
                 let session_paused = calculate_session_paused(session, still_running && is_last);
                 let session_worked = session_total - session_paused;
@@ -80,10 +89,23 @@ pub(crate) fn cmd_status(day: Option<String>, week: Option<u32>, year: Option<i3
                 format_fn(total_time),
                 pause_indicator
             );
-            println!("  Total Paused: {}", format_fn(total_paused));
-            println!("  Total Worked: {}", format_fn(total_worked));
+            let pause_notice = if auto_pause_bump.num_seconds() > 0 {
+                // Print pause notice when the rules changed anything
+                format!(
+                    "  Total Paused: {} ( {} {} pause [was {}, legal minimum {}] )",
+                    format_fn(effective_paused),
+                    CLI.scales,
+                    format_fn(auto_pause_bump),
+                    format_fn(raw_paused),
+                    format_fn(effective_paused),
+                )
+            } else {
+                format!("  Total Paused: {}", format_fn(effective_paused))
+            };
+            println!("{pause_notice}");
+            println!("  Total Worked: {}", format_fn(effective_worked));
 
-            let task_summary = format_task_summary(&record, total_worked, decimal);
+            let task_summary = format_task_summary(&record, effective_worked, decimal);
             if !task_summary.is_empty() {
                 print!("{task_summary}");
             }

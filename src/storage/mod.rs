@@ -3,6 +3,7 @@ mod editor;
 mod fileio;
 mod legacy;
 
+pub(crate) use configuration::AutoPauseRule;
 pub(crate) use configuration::TrackerConfig;
 use configuration::data_dir;
 pub(crate) use editor::detect_editor;

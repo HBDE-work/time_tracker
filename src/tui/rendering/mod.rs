@@ -1,4 +1,5 @@
 mod actions;
+mod autopause_editor;
 mod feedback;
 mod status;
 mod task_editor;
@@ -6,6 +7,7 @@ mod task_indicators;
 mod toggles;
 
 pub(crate) use actions::render_actions_column;
+pub(crate) use autopause_editor::render_autopause_editor_panel;
 pub(crate) use feedback::render_feedback_line;
 pub(crate) use status::render_status_panel;
 pub(crate) use task_editor::render_task_editor_panel;

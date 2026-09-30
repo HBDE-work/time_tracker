@@ -10,6 +10,8 @@ pub(crate) struct Glyphs {
     pub cursor_block: &'static str,
     pub smartcard: &'static str,
     pub book: &'static str,
+    pub scales: &'static str,
+    pub clock: &'static str,
 }
 
 pub(crate) const CLI: Glyphs = Glyphs {
@@ -20,6 +22,8 @@ pub(crate) const CLI: Glyphs = Glyphs {
     cursor_block: "_",
     smartcard: "[card]",
     book: "[book]",
+    scales: "[rule]",
+    clock: "[pause]",
 };
 
 pub(crate) const TUI: Glyphs = Glyphs {
@@ -30,4 +34,6 @@ pub(crate) const TUI: Glyphs = Glyphs {
     cursor_block: "\u{2588}",            // █
     smartcard: "\u{1F511}",              // 🔑
     book: "\u{1F56E}",                   // 🕮
+    scales: "\u{2696}",                  // ⚖
+    clock: "\u{23F0}",                   // ⏰
 };
